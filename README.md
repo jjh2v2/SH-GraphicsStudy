@@ -31,6 +31,5 @@ This repository is for studying of OpenGL and other graphic libraries such as Di
 2018-02-02
 - Moved to new repository. (previous repository name is changed to OPGL16, so it became that these files doesn't match for legacy repo.)
 
-2018-03-20
-
-* OpenGL Superbible 6ed 되짚기 중. (Chapter 1, 2, 3)
+2018-03-20 OpenGL Superbible 6ed 되짚기 중. (Chapter 1, 2, 3)
+2018-03-23 OpenGL Superbible 6ed Chapter 5 Done.
