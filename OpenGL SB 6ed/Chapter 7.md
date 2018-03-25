@@ -122,3 +122,199 @@ out gl_PerVertex {
 
 ## 7.2 드로잉 커맨드
 
+지금까지는 `glDrawArrays()` 만을 사용해서 렌더링 명령을 호출했지만, 하지만 *OpenGL* 은 여러 드로잉 커맨드를 제공한다. 
+
+### 7.2.1 인덱스된 드로잉 커맨드
+
+#### A. `glDrawElements()`
+
+*glDrawArrays()* 커맨드는 인덱스되지 않은 드로잉 커맨드이다. 즉, 버텍스가 **순서대로 처리**되며, 어떠한 버텍스 데이터도 단순히 버퍼에 나타나는 순서대로 *Vertex shader*에 페칭된다. 한편 ***Index화된*** Draw 콜은, **미리 정해준 인덱스의 배열**을 사용해서 버퍼의 값들을 읽어 *Fetching*해서 나간다.
+
+* **Index 화된** 드로잉 커맨드를 사용하기 위해서는 버퍼를 생성해서 해당 버퍼를 `GL_ELEMENT_ARRAY_BUFFER` 타깃에 바인딩을 해야한다. 이 버퍼에는 그리고자 하는 정점들의 **인덱스**가 들어가 있다.
+
+* 그리고, 인덱스를 받는 드로잉 함수 중 하나를 호출한다. 인덱스된 드로잉 함수는 중간에 **`ELEMENT`** 가 들어가 있다. 예를 들어서 다음과 같은 함수가 존재한다.
+
+  ``` c++
+  void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid * indices);
+  ```
+
+  이 함수는 `glDrawArrays()` 과 동일한 의미를 가지지만, `GL_ELEMENT_ARRAY_BUFFER` 의 인덱스 버퍼를 사용해서 해당 VAO 와 쉐이더를 동작시킨다는 점에서 차이점을 둔다.
+
+  * `type` 은 해당 인덱스 버퍼의 **값의 형식**을 나타낸다. 대개 `GL_UNSIGNED_INT` 가 쓰인다.
+
+> 해당 두 함수는 *OpenGL* 이 지원하는 기능 중 일부 기능만을 지원한다. 일반적인 드로잉 함수는 다음 주소의 See Also 을 참고하라.
+> https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glDrawArrays.xhtml
+
+####  B. Base vertex
+
+추가 인자를 취하는 `glDrawElements()` 의 첫 번째 고급 버전은, `glDrawElementsBaseVertex()` 이다. 이 함수는 다음과 같은 인자를 취한다.
+
+> https://www.khronos.org/opengl/wiki/GLAPI/glDrawElementsBaseVertex
+
+* ``` c++
+  void glDrawElementsBaseVertex(GLenum mode, GLsizei count, GLenum type, GLvoid *indices, GLint basevertex);
+  ```
+
+  `glDrawElements` 와 같으나, 다른 점은 버텍스 속성들이 페칭되기 전에 **인덱스에 `basevertex` 을 더함**으로써 시작 위치의 오프셋을 지정하도록 할 수 있다. 따라서 `glDrawElements` 는 `basevertex` 가 $ 0 $ 인 버전이라고 할 수 있다.
+
+#### C. 프리미티브 재시작을 통한 지오메트리 합치기
+
+여러가지 연속된 삼각형을 그려야 할 때, ***Triangle soup*** 라는 것을 통해 렌더링 성능을 향상시키게 할 수도 있다. 각 삼각형에는 세 개의 버텍스가 필요하고, 연속된 삼각형을 그릴려면 $ 3N$ 개의 정점이 필요하다. 하지만 *soup* 을 사해서 *strip* 화 시키면, 첫 삼각형을 제외한 모든 삼각형은 이미 그려진 정점들에서 연결할 정점 하나만 있으면 된다. 따라서 이 경우 $ N + 2 $ 개가 필요하다. 
+
+하지만 *strip* 기능을 무턱대고 사용하면, 적절하지 않은 모델에서는 성능이 떨어지거나 스트립 사용 시에 어플리케이션이 제대로 처리를 못할 때도 존재한다.
+
+* ***Primitive restart*** 는 이를 해결한다. 프리미티브 재시작은 `GL_TRIANGLE_STRIP` `GL_TRIANGLE_FAN` `GL_LINE_STRIP` `GL_LINE_LOOP` 등의 지오메트리 타입에 적용할 수 있다. 이것을 사용해서, *OpenGL* 에게 **언제 하나의 스트립이 끝나고, 다른 스트립이 시작하는가**를 알려줄 수 있다. 
+
+  * 또한, 지오메트리에서는 하나의 스트립이 종료되고 시작되는 위치를 지정하기 위해서 **규격간 미리 정한 값으로 마커를 설정**한다. 따라서, *OpenGL* 은 Element 배열에서 인덱스를 가져올 때 이 특별한 인덱스를 확인해서 스트립을 갱신한다.
+
+  * 그렇게 스트립을 갱신하기 위해서는 다음 함수로 활성화 시켜야한다.
+
+    ``` c++
+    glEnable(GL_PRIMITIVE_RESTART);
+    glDisable(GL_PRIMITIVE_RESTART);
+    ```
+
+  * 스트립을 끊을 특별한 인덱스 값은 다음 함수로 설정할 수 있다.
+
+    ``` c++
+    glPrimitiveRestartIndex(value);
+    ```
+
+    이 값은 기본으로는 $ 0 $ 으로 되어있기 때문에, *strip* 을 쓸 참이라면 해당 `type` 의 해당 최대 값을 사용하는 것도 좋은 방법이 될 것이다.
+
+  > 자세한 설명은 다음 주소를 참고하라.
+  > https://www.khronos.org/opengl/wiki/Vertex_Rendering#Primitive_Restart
+
+### 7.2.2 Instancing
+
+#### A. Instancing
+
+동일한 객체를 여러 번 반복해서 그려야 할 때, `glDrawArrays` 나 `glDrawElements` 로 매번 그리는 것은 효율이 매우 안 좋을 수 있다. 예를 들어서, 수십만의 간단한 개별 잔디 잎을 화면에 그려내야 한다고 하면, 이를 각각 렌더링하면 초당 프레임이 소수점을 찍어버릴 수도 있다.
+
+사실 *OpenGL* 은 렌더링만 하기 때문에 문제가 되지 않을지도 모르겠지만, `for` 문 등을 사용해서 드로우 콜을 누적시킨다면 메모리와 GPU 사이의 버스 대역폭이 터져나가 병목이 일어날지도 모른다. 따라서 *OpenGL* 은 이 문제를 해결하기 위해 ***Instancing*** 을 지원하다. 이를 사용해서 GPU에서 **동일한 지오메트리의 많은 복사본을 그리도록 요청**하게 할 수 있다.
+
+다음과 같은 함수를 쓴다.
+
+* ``` c++
+  void glDrawArraysInstanced(GLenum mode, GLint first, GLsizei count, GLsizei primcount);
+  ```
+
+  ``` c++
+  void glDrawElementsInstanced(GLenum mode, GLsizei count, GLenum type, const void* indices, GLsizei primcount);
+  ```
+
+  위 함수들은 기존 드로잉 콜과 다를 바 없으나, **`primcount`** 로 *OpenGL* 에게 몇 개 동일한 지오메트리를 그릴지 명령할 수 있다는 차이점이 있다. 만약 `primcount` 을 $ 1 $ 로 설정하면 기존 함수와 동일한 동작을 요청한다. 
+
+  * 또한, *OpenGL* 은 기존 `basevertex` 인자를 더한 *Instancing* 오버로딩 함수를 제공하고 있다.
+  * `basevertex` 가 있듯이, *Instacing* 버전의 함수에는 ***`baseInstance`*** 인자를 제공하는 함수도 있다. 이 함수의 경우에는 인스턴싱을 할 때 정점 속성의 덩어리 역시 넘겨주게 되는데 이 정점 속성을 몇 번부터 시작하게 할까를 결정한다.
+
+> 자세한 것은 다음 주소를 참고하라.
+> https://www.khronos.org/opengl/wiki/GLAPI/glDrawArraysInstancedBaseInstance
+
+* 인스턴스 렌더링이 가능한 이유는, 쉐이더 프로그램의 내장 변수인 ***`gl_InstanceID`*** 가 있기 때문이다. 이 변수는 버텍스에 들어있는데, *Instancing* 을 할 때 버텍스의 첫 번째 복사본이 쉐이더에 페칭이 되면 *gl_InstanceID* 는 $ 0 $ 이고, 다음 것이 들어오면 값은 $ 1 $ 이 된다.
+
+또한 인스턴싱과 위에서 말한 것들을 십분 활용해서 동일한 지오메트리를 다르게 보이게 할 수도 있다.
+
+#### B. 잔디 출력
+
+> Chaper 5 의 _722_grass.cc 을 참고한다.
+
+#### C. 데이터 자동으로 얻기
+
+##### `gl_InstanceID`
+
+이 외에도, 렌더링할 인스턴스 개수와 동일한 길이의 속성 배열이 있을 때, 인덱스로 `gl_InstanceID` 등을 사용할 수 있다. 예를 들어서 텍스쳐의 *texel* 을 참조하거나, *Uniform array* 의 인덱스로도 유용하게 활용할 수 있다. 이렇게 해서 **배열을 "인스턴스 속성"** 으로 간주한다. 렌더링 할 각 인스턴스마다 **새로운 속성값을 사용할 수 있게 하는 것이다**.
+
+보통 정점 속성 (Vertex Attribute) 는 Vertex 별로 읽어서 새로운 값을 쉐이더에 제공하는데, 이와는 다르게 *OpenGL* 이 인스턴스 당 한 번씩 **배열로부터 속성을 읽도록** 하기 위해서는 다음과 같은 함수를 사용한다.
+
+* ``` c++
+  void glVertexAttribDivisor(GLuint index, GLuint divisor);
+  ```
+
+  * `index` 는 일반 Vertex Attribute 의 인덱스를 말한다.
+  * **`divisor`** 은 *non-zero* 일 경우, ***divisor*** 개의 새로운 인스턴스마다 새로운 데이터를 Fetching 한다. 하지만 *zero* 일 경우는 버텍스마다 새로운 값을 갖는다. 
+
+  이를 사용해서 매 속성에 대해 다른 값을 Fetching 할 수 있도록 한다.
+
+##### 예시
+
+> Chapter 5 의 _723_instance.cc 을 참고할 것.
+
+### 7.2.3 Indirect Draw
+
+#### A. 함수 설명 
+
+이전까지는 정점의 개수 및 인스턴스의 개수, 그리고 보정 인덱스 및 보정 인스턴스와 같은 것들을 일일히 알아서 적어넣어줘야 했다. 하지만 **각 드로우의 인자를 버퍼 객체에 저장** 할 수 있도록 하는 렌더 함수 역시 존재한다. 다만 어플리케이션이 *OpenGL* 의 렌더 커맨드를 호출할 때는 버퍼 객체의 어떤 임의 인자에 무슨 자료가 들어가 있는지 전혀 모른다.
+
+*OpenGL* 에는 $ 4 $ 개의 간접 렌더 커맨드가 존재한다. 이 중 두 개는 직접 드로잉 커맨드와 동일하다. 다음과 같은 함수가 존재한다.
+
+* ``` c++
+  void glDrawArraysIndirect(GLenum mode, const void *indirect);
+  void glDrawElementsIndirect(GLenum mode, GLenum type, const void *indirect);
+  ```
+
+  위 함수는 직접 인자 쓰는 버전에 빗댈 때, `glDrawArraysInstancedBaseInstance`  와 `glDrawElementsInstancedBaseVertexBaseInstance` 와 같다.
+
+  * **`indirect`** 는 ***`GL_DRAWY_INDIRECT_BUFFER`*** 타깃에 바인딩된 버퍼 객체의 주소를 입력으로 받는다.
+
+따라서, 위 간접 함수에 대한 `INDIRECT` 버퍼는 다음과 같으며, 직접 함수를 쓸 때와 비교하면...
+
+``` c++
+typedef  struct {
+    uint  count;
+    uint  primCount;
+    uint  first;
+    uint  baseInstance;
+} DrawArraysIndirectCommand;
+```
+
+``` c++
+const DrawArraysIndirectCommand *cmd = (const DrawArraysIndirectCommand *)indirect;
+glDrawArraysInstancedBaseInstance(mode, cmd->first, cmd->count, cmd->primCount, cmd->baseInstance);
+```
+
+와 동일하다. `Indirect` 구조체는 버퍼의 덩어리이기 때문에, 지정한 메모리 공간 위치만 맞으면 아무 버퍼나 `GL_DRAW_INDIRECT_BUFFER` 가 될 수 있다. (물론 이 버퍼를 쓰기 전에, 버퍼를 생성해서 바인딩해서 데이터를 집어넣어줘야 한다)
+
+그리고, 이 작업을 훨씬 더 쉽게 수행할 수 있는, ***구조체 배열에 대한 루프를 도는 멀티 버전***이 존재한다. 
+
+> https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glMultiDrawArraysIndirect.xhtml
+> https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glMultiDrawElementsIndirect.xhtml
+
+* ``` c++
+  void glMultiDrawArraysIndirect(GLenum mode,
+    	const void *indirect,
+    	GLsizei drawcount,
+    	GLsizei stride);
+  ```
+
+  *version 4.3* 부터 추가된 함수로, 이 함수는 **여러 개의 `GL_DRAW_INDIRECT_BUFFER`** 가 존재하면 이 컨테이너 청크를 순회하면서 간접적으로 프리미티브를 그린다. 이 역시 `glDrawElements` 버전을 지원한다.
+
+  * `drawcount` 는 **순회할 횟수**를 말한다.
+  * `stride` 는 각 `GL_DRAW_INDIRECT_BUFFER` 의 **stride** 을 말한다. 만약 $ 0 $ 이면 구조체들 사이의 메모리 공간이 없다고 가정하고 렌더링을 실시한다.
+
+따라서 위의 함수들을 사용하면, **많은 드로잉 호출에 대한 각각의 인자들을 버퍼 객체에 미리 로딩**하게 할 수 있고, *GPU* 에서 각각의 드로잉을 하는데 필요한 버퍼 객체가 어플리케이션 단에서 준비되서 전송될 때까지 기다릴 필요가 없어진다.
+
+다음 예제는 `glMultiDrawArraysIndirect()` 을 사용하는 간단한 예이다.
+
+``` c++
+typedef struct {
+    GLuint count; GLuint primCount; GLuint first; GLuint baseInstance;
+} DrawArraysIndirectCommand;
+
+DrawArraysIndirectCommand draws[] = {
+    { 42, 1, 0, 0 }, { 192, 1, 327, 0 }, { 99, 1, 901, 0 }
+};
+
+GLuint buffer;
+glGenBuffers(1, &buffer);
+glBindBuffer(GL_DRAW_INDIRECT_BUFFER, buffer);
+glBufferData(GL_DRAW_INDIRECT_BUFFER, sizeof(draws), draws, GL_STATIC_DRAW);
+glMultiDrawArraysIndirect(GL_TRIANGLES, buffer, sizeof(draws) / sizeof(draws[0]), 0);
+```
+
+#### B. 예시
+
+> Chapter 7 / _723.indirect.cc 을 참고할 것.
+
+### 7.3 변환된 버텍스 저장하기
+
