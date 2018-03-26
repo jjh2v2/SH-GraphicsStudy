@@ -3,7 +3,7 @@
 
 class InitDirect3DApp final : public D3DApp {
 public:
-    InitDirect3DApp(HINSTANCE hInstance);
+    InitDirect3DApp(HINSTANCE h_instance);
     ~InitDirect3DApp();
 
     bool Initialize() override final;
@@ -33,7 +33,7 @@ int WINAPI WinMain(HINSTANCE h_instance, HINSTANCE prev_instance, PSTR cmd_line,
 InitDirect3DApp::InitDirect3DApp(HINSTANCE h_instance) : D3DApp{ h_instance } {};
 
 bool InitDirect3DApp::Initialize() {
-    if (!D3DApp::Initialize()) return false; else return true;
+    return D3DApp::Initialize();
 }
 
 void InitDirect3DApp::OnResize() {
@@ -67,6 +67,7 @@ void InitDirect3DApp::Draw(const GameTimer& gt) {
 
     ThrowIfFailed(mCommandList->Close());
     ID3D12CommandList* cmd_lists[] = { mCommandList.Get() };
+    mCommandQueue->ExecuteCommandLists(_countof(cmd_lists), cmd_lists);
 
     ThrowIfFailed(mSwapChain->Present(0, 0));
     mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;

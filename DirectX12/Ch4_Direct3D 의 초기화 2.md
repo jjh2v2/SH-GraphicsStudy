@@ -588,3 +588,112 @@ mCommandList->RSSetScissorRects(1, &mScissorRect);
 ```
 
 물론 이 역시 커맨드 리스트가 Reset 이 되면 다시 설정해줘야 하는 수고가 든다.
+
+## 4.4 Direct3D 초기화 예제
+
+이제까지의 지식을 총동원해서 응용 프로그램을 만들어본다. 다만 이 예제에서는 기본 프레임워크인 `D3DApp` 이 구축을 대부분 담당하기 때문에, 다음과 같이 렌더링만을 해준다.
+
+``` c++
+void InitDirect3DApp::Draw(const GameTimer& gt) {
+    /*! Command list allocator 을 재설정한다. */
+    ThrowIfFailed(mDirectCmdListAlloc->Reset());
+    /*! Command list 을 리셋하고, 연 상태로 둔다. 상태는 초기 더미상태로 둔다. */
+    ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
+    /*! 자원 용도에 관련된 상태 변경을 Direct3D 명령어로써 통지한다 */
+    mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(
+        CurrentBackBuffer(),
+        D3D12_RESOURCE_STATE_PRESENT,
+        D3D12_RESOURCE_STATE_RENDER_TARGET));
+    /*! 명령어로 Viewport 와 Scissor Rectangle 을 설정하도록 한다 */
+    mCommandList->RSSetViewports(1, &mScreenViewport);
+    mCommandList->RSSetScissorRects(1, &mScissorRect);
+    /*! 후면 버퍼의 전체를 LightSteelBlue 로 채운다 */
+    mCommandList->ClearRenderTargetView(CurrentBackBufferView(), DirectX::Colors::LightSteelBlue, 0, nullptr);
+    /*! DSV 역시 Depth 값을 1, 스텐실을 0x00 으로 초기화 한다 */
+    mCommandList->ClearDepthStencilView(DepthStencilView(),
+        D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.f, 0x00, 0, nullptr);
+    /*! 렌더 타깃을 바인딩하도록 명령하는 것을 요청한다 */
+    mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
+    /*! 자원 용도에 따른 상태 통지를 Direct3D 에 통지한다 */
+    mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(
+        CurrentBackBuffer(),
+        D3D12_RESOURCE_STATE_RENDER_TARGET,
+        D3D12_RESOURCE_STATE_PRESENT));
+    /*! Command List을 닫고, 리스트를 얻어서, GPU 의 VRAM 에 명령을 삽입한다 */
+    ThrowIfFailed(mCommandList->Close());
+    ID3D12CommandList* cmd_lists[] = { mCommandList.Get() };
+    mCommandQueue->ExecuteCommandLists(_countof(cmd_lists), cmd_lists);
+    /*! 후면 버퍼와 전면 버퍼를 교환한다 */
+    ThrowIfFailed(mSwapChain->Present(0, 0));
+    mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;
+    /*! 쓸데없이 프레임의 명령들이 모두 처리되기를 기다린다. */
+    FlushCommandQueue();
+}
+```
+
+여기서 잠시 알아둬야 할 메서드가 있다.
+
+* ***`ID3D12GraphicsCommandList::ClearRenderTargetView`***
+
+  > https://msdn.microsoft.com/ko-kr/library/windows/desktop/dn903842(v=vs.85).aspx
+
+  ``` c++
+  void ClearRenderTargetView(
+    [in]       D3D12_CPU_DESCRIPTOR_HANDLE RenderTargetView,
+    [in] const FLOAT                       ColorRGBA[4],
+    [in]       UINT                        NumRects,
+    [in] const D3D12_RECT                  *pRects
+  );
+  ```
+
+  Sets all the elements in a render target to one value. 
+
+  1. `RenderTargetView` 
+     지울 렌더 대상을 서술하는 ***RTV***.
+  2. `ColorRGBA`
+     렌더 대상을 지우는 데 사용할 색상을 의미한다
+  3. `NumRects` The number of rectangles in the array that the pRects parameter specifies. 
+  4. `pRects` An array of D3D12_RECT structures for the rectangles in the resource view to clear. If **NULL**, ClearRenderTargetView clears the entire resource view. 
+
+* ***`ID3D12GraphicsCommandList::ClearDepthStencilView`***
+
+  > https://msdn.microsoft.com/ko-kr/library/windows/desktop/dn903840(v=vs.85).aspx
+
+  ``` c++
+  void ClearDepthStencilView(
+    [in]       D3D12_CPU_DESCRIPTOR_HANDLE DepthStencilView,
+    [in]       D3D12_CLEAR_FLAGS           ClearFlags,
+    [in]       FLOAT                       Depth,
+    [in]       UINT8                       Stencil,
+    [in]       UINT                        NumRects,
+    [in] const D3D12_RECT                  *pRects
+  );
+  ```
+
+  Clears the depth-stencil resource.
+
+* ***`ID3D12GraphicsCommandList::OMSetRenderTargets`***
+
+  >https://msdn.microsoft.com/ko-kr/library/windows/desktop/dn986884(v=vs.85).aspx
+
+  ``` c++
+  void OMSetRenderTargets(
+    [in]                 UINT                        NumRenderTargetDescriptors,
+    [in, optional] const D3D12_CPU_DESCRIPTOR_HANDLE *pRenderTargetDescriptors,
+    [in]                 BOOL                        RTsSingleHandleToDescriptorRange,
+    [in, optional] const D3D12_CPU_DESCRIPTOR_HANDLE *pDepthStencilDescriptor
+  );
+  ```
+
+* ***`IDXGISwapChain::Present`***
+
+  > https://msdn.microsoft.com/en-us/library/windows/desktop/bb174576(v=vs.85).aspx
+
+  ``` c++
+  HRESULT Present(
+     UINT SyncInterval,
+     UINT Flags
+  );
+  ```
+
+  ​
