@@ -156,5 +156,5 @@ for (UINT i = 0; i  < numVertices; ++i) {
 }
 ```
 
-### 5.6.1 Local space & World space
+> Local space, World space, View space, View frustum, Clip space, Normal distribution coordinate 등은 책을 참고한다.
 
