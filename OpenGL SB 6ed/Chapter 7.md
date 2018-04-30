@@ -467,3 +467,118 @@ glEnable(GL_RASTERIZER_DISCARD);
 glDisable(GL_RASTERIZER_DISCARD);
 ```
 
+#### 7.3.4 변환 피드백 예제
+
+> Chapter7/_734_transformfeedback.cc 을 참고한다.
+
+#### LoadShaders()
+
+```c++
+GLuint vertex_shader { sb6::shader::load(k_vs_update_path, GL_VERTEX_SHADER) };
+glAttachShader(m_update_program, vertex_shader);
+const char* transform_feedback_varyings[] { "tf_position_mass", "tf_velocity" };
+glTransformFeedbackVaryings(
+    m_update_program, 2, transform_feedback_varyings, GL_SEPARATE_ATTRIBS);
+glLinkProgram(m_update_program);
+glDeleteShader(vertex_shader);
+```
+*Transform feedback* 을 사용할 전용 쉐이더를 만든다. 이 쉐이더는 *Rasterization* 이후의 처리는 하지 않을 예정이기 때문에 (`glEnable(GL_RASTERIZER_DISCARD)`) 정점 쉐이더만 컴파일해서 링킹한다.
+
+#### MakeInitialPositionWithConnection()
+
+```c++
+glGenVertexArrays(2, m_vao.data());
+glGenBuffers(5, m_vbo.data());
+
+for (auto i = 0; i < 2; i++) {
+    glBindVertexArray(m_vao[i]);
+
+    glBindBuffer(GL_ARRAY_BUFFER, m_vbo[POSITION_A + i]);
+    glBufferData(GL_ARRAY_BUFFER, 
+        total_byte_size<vmath::vec4>, initial_positions.get(), GL_DYNAMIC_COPY);
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 0, NULL);
+    glEnableVertexAttribArray(0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, m_vbo[VELOCITY_A + i]);
+    glBufferData(GL_ARRAY_BUFFER, 
+        total_byte_size<vmath::vec3>, initial_velocities.get(), GL_DYNAMIC_COPY);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+    glEnableVertexAttribArray(1);
+
+    glBindBuffer(GL_ARRAY_BUFFER, m_vbo[CONNECTION]);
+    glBufferData(GL_ARRAY_BUFFER, 
+        total_byte_size<vmath::ivec4>, connection_vectors.get(), GL_STATIC_DRAW);
+    glVertexAttribIPointer(2, 4, GL_INT, 0, NULL);
+    glEnableVertexAttribArray(2);
+}
+```
+Update shader 안에서 유사 물리 처리를 할 예정이며, *Iteration* 을 해가면서 (반복) 할 예정이기 때문에, 각 점의 이전 포지션 및 속도를 담을 버퍼와, 처리 이후의 포지션 및 속도를 담을 버퍼를 만들어준다. 이 때 버퍼의 어드레스는 VRAM 에 위치하기 때문에 `initial_poisition` 등이 설정 이후 지워질 힙 객체이어도 상관은 없다.
+
+#### render(double dt)
+
+```c++
+// Render update shader program till frontend stages.
+glUseProgram(m_update_program);
+glEnable(GL_RASTERIZER_DISCARD);
+
+for (auto i = m_iterations_per_frame; i != 0; --i) {
+    glBindVertexArray(m_vao[m_iteration_index & 1]);
+    glBindTexture(GL_TEXTURE_BUFFER, m_pos_tbo[m_iteration_index & 1]);
+    m_iteration_index++;
+    
+    glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 
+    	0, m_vbo[POSITION_A + (m_iteration_index & 1)]);
+    glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 
+    	1, m_vbo[VELOCITY_A + (m_iteration_index & 1)]);
+    
+    // Begin transfrom feedback buffer storing.
+    glBeginTransformFeedback(GL_POINTS);
+    glDrawArrays(GL_POINTS, 0, k_point_total);
+    glEndTransformFeedback();
+}
+glDisable(GL_RASTERIZER_DISCARD);
+```
+``` c++
+glGenTextures(2, m_pos_tbo.data());
+glBindTexture(GL_TEXTURE_BUFFER, m_pos_tbo[0]);
+glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, m_vbo[POSITION_A]);
+glBindTexture(GL_TEXTURE_BUFFER, m_pos_tbo[1]);
+glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, m_vbo[POSITION_B]);
+```
+
+Update 물리 시뮬레이션을 하는 렌더링을 한다. 이 때 TextureBufferObject 가 바인딩이 되어있는데, TextureBufferObject 는 `m_vbo[POSITION_A, B]` 을 바인딩하고 있으며 (즉, 동일 버퍼가 두 군데에 바인딩이 되어있음) 이는 쉐이더 내부에서 이웃 노드의 접근을 하는데 매우 중요하게 사용된다. (무작위로 접근할 수 있도록 한다.)
+
+``` glsl
+for (int i = 0; i < 4; i++) {
+    if (connection[i] != -1) {
+        // q is the position of the other vertex
+        vec3 q = texelFetch(tex_position, connection[i]).xyz;
+        vec3 d = q - p;
+        float x = length(d);
+        F += -k * (rest_length - x) * normalize(d);
+        fixed_node = false;
+    }
+}
+```
+
+``` c++
+if (m_draw_lines) {
+    glLineWidth(2.f);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_index_buffer);
+    glDrawElements(GL_LINES, k_total_connection * 2, GL_UNSIGNED_INT, NULL);
+}
+```
+
+물체의 움직임에 따라서 선이 알아서 움직이는 것은, `GL_LINES` 을 사용했기 때문에, 각 정점에서 정점까지 렌더링을 알아서 해주는 것일 뿐이며, 쉐이더는 `Render` 로 바뀌었으나 아직 바인딩된 VAO 및 TBO 가 있기 때문에 묘화 렌더링을 할 때도 업데이트 된 VAO 의 버퍼 객체를 어셈블해서 렌더링하는 것이다.
+
+#### In book...
+
+> ...VBO 외에도 두 개의 TBO 가 필요하다. 각 버퍼를 위치 VBO 로도 사용하고 동시에 TBO 로도 사용한다. 좀 이상하게 들릴지도 모르겠지만, OpenGL 에서는 전혀 문제가 없다. 결국 두 개의 다른 방식을 사용해서 동일한 버퍼로부터 읽어오는 것이다.  이 때 필요한 함수가 ***`glTexBuffer()`*** 이다.
+>
+> ``` c++
+> glGenTextures(2, m_pos_tbo.data());
+> glBindTexture(GL_TEXTURE_BUFFER, m_pos_tbo[0]);
+> glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, m_vbo[POSITION_A]);
+> glBindTexture(GL_TEXTURE_BUFFER, m_pos_tbo[1]);
+> glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, m_vbo[POSITION_B]);
+> ```
