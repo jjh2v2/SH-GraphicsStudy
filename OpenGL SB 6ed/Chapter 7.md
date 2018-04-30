@@ -419,3 +419,51 @@ glGetIntegerv(GL_MAX_TRANSFORM_FEEDBACK_INTERLEAVED_COMPONENTS);
 >또한, 일련의 베어링 출력을 하나의 버퍼에 INTERLEAVED 로 쓰면서, 동시에 **일부 속성을 다른 버퍼**에 쓰게 하는 것도 가능하다. 이 경우에도 ***가상 베어링 이름*** 인 `gl_NextBuffer` 을 제공해주고 있으며, 이를 사용해서 현재 *TFB Binding point + 1* 에 바인딩된 버퍼에 값을 쓰게끔 한다.
 >
 >물론 이 경우에는, 변환 피드백 자체가 변경이 되므로, `glLinkProgram()` 을 호출해서 링크를 해줘야 한다.
+
+### 7.3.2 Transform Feedback 시작, 일시 정지, 끝내기
+
+#### A. Functions
+
+변환 피드백을 설정하고, 결과를 담을 버퍼를 피드백 바인딩 포인트에 바인딩을 시킨 후에, 변환 피드백 모드는 다음 함수로 활성화 시킬 수 있다.
+
+``` c++
+void glBeginTransformFeedback(GLenum primitiveMode);
+```
+
+> https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glBeginTransformFeedback.xhtml
+
+위 함수를 호출해서, 마지막 프론트엔드에서 출력 베어링이 변환 피드백 버퍼에 쓰여질 것이다. 물론 이 뒤에 `glDrawArrays()` 을 사용해서 드로잉 함수를 호출하여 버퍼에 베어링 변수들을 저장해야 한다. 이 때 중요한 것은, **변환 피드백에서 사용할 프리미티브와, 드로우 콜 시에 출력될 프리미티브와 같아야** 한다. *Geometry Shader* 가 있는 경우에는 `GL_PATCHES` 로, 그리고 쉐이더에서는 *TF* 와 동일한 프리미티브를 출력할 수 있어야 한다.
+
+임시적으로 변환 피드백을 멈추고 싶을 경우에는 다음 함수를 호출하고, 일시정지인 상태에서 다시 변환 피드백 버퍼에 `varying` 을 쓰고자 할 때는 밑의 함수를 쓴다.
+
+``` c++
+void glPauseTransformFeedback();
+void glResumeTransformFeedback();
+```
+
+요주의해야할 점은, *TF* 가 시작된 상태에서 변환 피드백 모드가 끝나거나 변환 피드백 버퍼에 할당된 공간을 다 쓸 때까지는 계속 *Transform Feedback Buffer* 에 `varying` 이 기록된다.
+
+변환 피드백 모드를 저장할려면 다음을 호출한다.
+
+``` c++
+void glEndTransformFeedback();
+```
+
+> 주의해야 할 것은, 변환 피드백 모드가 시작되고 끝나는 도중에는 변환 피드백의 버퍼 크기를 조정하거나, 바인딩을 변경하거나 재할당하는 것은 불가능하다.
+
+### 7.3.3 Backend 비활성화 하기
+
+#### A. Functions
+
+*Transform Feedback* 은 glsl 의 파이프라인 중에서 Frontend 만을 활용하고 Backend 을 쓰지 않는 경우가 많다. 따라서 쉐이더 단계에서 **그리지 않고자 하면** 다음 함수를 호출한다.
+
+``` c++
+glEnable(GL_RASTERIZER_DISCARD);
+```
+
+이렇게 하면 Frontend 뒤에 프리미티브 처리를 하지 않는다. 이 기믹은 *TF* 에서 유용하다. 만약 래스터라이제이션을 키려면 다음과 같이 쓴다.
+
+``` c++
+glDisable(GL_RASTERIZER_DISCARD);
+```
+
