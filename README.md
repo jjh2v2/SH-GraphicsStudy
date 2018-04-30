@@ -1,4 +1,4 @@
-# GraphicsStudy (Moved from OpenGLStudy)
+# GraphicsStudyNotes
 Graphic study notes.
 
 This repository is for studying of OpenGL and other graphic libraries such as DirectX and so on. All documents and notes are written in Korean. You have a right to read and release a issue to ask something for me.
@@ -17,7 +17,8 @@ This repository is for studying of OpenGL and other graphic libraries such as Di
 ### On-going
 
 * 2018-01/02 :: Studying OpenGL https://learnopengl.com
-* 2018-03 :: OpenGL Superbible 6ed
+* 2018-03~ :: OpenGL Superbible 6ed
+* 2018-04~ :: DirectX 12를 이용한 3D 게임 프로그래밍 입문
 
 ---
 
@@ -33,3 +34,5 @@ This repository is for studying of OpenGL and other graphic libraries such as Di
 
 2018-03-20 OpenGL Superbible 6ed 되짚기 중. (Chapter 1, 2, 3)
 2018-03-23 OpenGL Superbible 6ed Chapter 5 Done.
+2018-03-30 DirectX 12를 이용한 3D 게임 프로그래밍 입문 Chapter 5 Done.
+2018-04-30 OpenGL Superbible 6ed Chapter 7 Done.
