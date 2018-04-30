@@ -327,3 +327,95 @@ glMultiDrawArraysIndirect(GL_TRIANGLES, buffer, sizeof(draws) / sizeof(draws[0])
 *Transform feedback* 에 기록되는 최종 프리미티브는 프론트엔드에서 프로그래밍 가능한 부분에서 최종 출력되는 프리미티브가 기록이 된다. 예를 들어서, *Geometry Shader* 가 없고, *TCS, TES* 가 없으면 *Vertex Shader* 에서 생성되서 *Primitive Assembler* 에서 조합된 프리미티브가 기록이 된다. 이 때 우선적으로 프리미티브의 정보가 기록이 되는 버퍼를 ***Transform Feedback Buffer*** 이라고 한다.
 
 ***TFB*** 에 최종 프리미티브가 들어가게 되면, `glGetBufferSubData()` 혹은 `glMapBufferRange(target, start, byte_size, flag)` 을 사용해서 어플리케이션 단에서 직접 읽게 할 수도 있다. 또한 이어지는 드로잉 커맨드의 원본 정점 데이터로 사용될 수 있다.
+
+### 7.3.1 Transform Feedback 사용하기
+
+#### A. Varying
+
+> Attribute 을 `in` `out` 으로 쓰기 전에, `attirbute` `varying` 으로 쓰기도 하는데, 그 것의 의미와 같은 듯...
+
+프론트엔드의 각각의 스테이지로부터의 출력을 **varying** 이라고 한다.
+
+#### B. Functions
+
+OpenGL 의 변환 피드백에 어떤 것을 기록할지 알리는 함수는 `glTransformFeedbackVarying()` 을 사용한다.
+
+* [`glTransformFeedbackVarying(program, count, const GLchar* const* varying, bufferMode)`](https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glTransformFeedbackVaryings.xhtml) 
+  * *program* : 쉐이더 프로그램의 ID
+  * *count* : The number of varying variables used for transform feedback. 즉, *변환 피드백* 의 버퍼에 저장할 `varying` 쉐이더 변수들의 개수
+  * *varying* : 쉐이더에서 찾을 `varying` 쉐이더 변수의 이름'들'
+  * *bufferMode* : `varying` 을 변환 피드백 버퍼에 기록할 때 사용하는 옵션 플래그.
+    * `GL_INTERLEAVED_ATTRIBS` : 여러 베어링은 **단일 버퍼**에 연속적으로 기록될 것이다.
+    * `GL_SEPARATE_ATTRIBS` : 각 베어링은 **각 버퍼**에 연속적으로 기록될 것이다.
+
+만약 쉐이더 프로그램에서 마지막 스테이지가 정점 쉐이더일 때, 버텍스 쉐이더 코드는 출력 베어링을 선언할 수 있다.
+
+``` c++
+out vec4 vs_position_out;
+out vec4 vs_color_out;
+out vec3 vs_normal_out;
+out vec3 vs_binormal_out;
+varying vec3 vs_tangent_out;
+```
+
+베어링을 지정하려면 어플리케이션 쪽에서, 해당 베어링 변수를 바인딩할 수 있도록 이름을 정해야 한다.
+
+``` c++
+static const char* varying_names[] = {
+    "vs_position_out",
+    "vs_color_out",
+    "vs_normal_out",
+    "vs_binormal_out",
+    "vs_tangent_out"
+};
+const int num_varyings = sizeof(varying_names) / sizeof(varying_names[0]);
+glTransformFeedbackVaryings(program, num_varyings, varying_names, GL_INTERLEAVED_ATTRIBS);
+```
+
+이 때 `glTransformFeedbackVarying` 은 쉐이더를 설정할 때 사용한다. 이 함수를 사용하고 난 뒤에는 ```glLinkProgram(program)``` 을 사용해서 프로그램 객체를 링크시켜줘야 한다.
+
+만약 변환 피드백으로 기록된 베어링들을 변경하면, 프로그램 객체를 다시 링크시켜야 한다. (피드백 버퍼에 값을 변경하는게 아니라, 베어링 변수 그 자체를 변경시에는 객체를 다시 링크시키는 것은 당연하다.)
+
+#### C. Implementation
+
+*Transform feedback* 을 사용해서 변환 피드백에 *varying* 변수들의 값을 쓰기 전에, ***피드백 버퍼를 생성***해서 변환 피드백 버퍼 바인딩 포인트에 바인딩을 시켜야 한다. 물론 데이터를 쓰기 전에 버퍼에 공간이 할당되어야 한다.
+
+``` c++
+GLuint buffer;
+glGenBuffer(1, &buffer);
+glBindBuffer(GL_TRANSFORM_FEEDBACK_BUFFER, buffer);
+glBufferData(GL_TRANSFORM_FEEDBACK_BUFFER, size, nullptr, GL_DYNAMIC_COPY);
+```
+
+> `GL_DYNAMIC_COPY` 는 데이터가 VRAM 에 상주한 뒤로도 자주 변하고, 매 갱신 중간에 사용될 수 있다는 것을 OpenGL 에게 알리는 옵션이다. 
+
+이 후에, 어떤 버퍼에 변환 피드백 데이터가 바인딩이 될 것인지를 OpenGL 에게 알리기 위해서, **인덱스화된 Transform Feedback 바인딩 포인트** 중 하나에 저장해야 한다. 버퍼를 인덱스된 바인딩 포인트에 바인딩하기 위해서는 다음과 같은 함수를 호출한다.
+
+* [**`glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, index, buffer)`**](https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glBindBufferBase.xhtml)
+
+  * *index* : GL_TRANSFORM_FEEDBACK_BUFFER 의 부수 바인딩 포인트이다. 이 때 index 값은 `glTransformFeedbackVarying` 함수에서 설정한 인덱스 값 $ N $ 의  $ N - 1 $ 까지여야 하고, zero based 이다.
+
+* `glBindBufferRange(target, index, buffer, offset, size)` 
+
+  일반 BaseBufferBase 에서 좀 더 기능이 확장된 버전으로, 이 함수를 사용해서 *Transform Feedback* 을 사용하면 바인딩할 버퍼의 일부를 인덱스된 바인딩 포인트에 바인딩 할  수 있다. 이를 활용하면, *Transform Feedback* 의 모드가 `GL_SEPARATE_ATTRIBS` 일 때에도 단일 버퍼의 각 일부분에 출력할 `varying` 들의 값을 저장할 수 있게 된다.
+
+이 때, *변환 피드백 의 모드가 SEPARATE 일 때 해당 *TransformFeedback* 의 바인딩 포인트가 최대 몇 개 까지 허용하는 지를 알아보기 위해서는 다음과 같은 함수를 사용한다.
+
+``` c++
+glGetIntegerv(GL_MAX_TRANFORM_FEEDBACK_SEPARATE_COMPONENTS);
+```
+
+모드가 INTERLEAVED 일 때는 베어링 개수의 제한은 없지만, 버퍼에 쓸 수 있는 요소의 개수의 값은 제한이 있다. 예를 들면, `vec4` 보다는 `vec3` 베어링을 더 많이 쓸 수 있다. 이 제한은 그래픽스 하드웨어에 의존적이기 때문에 위와 같이 다음 함수를 사용해서 쓸 수 있다.
+
+``` c++
+glGetIntegerv(GL_MAX_TRANSFORM_FEEDBACK_INTERLEAVED_COMPONENTS);
+```
+
+>이 외에도...
+>
+>필요하다면 *TFB* 에 저장된 출력 구조체 사이에 빈 공간을 일부러 추가하게 할 수도 있다.
+>이렇게 하려면, ***가상 베어링 이름*** 인, `gl_SkipCompontent1` `2` `3` `4` 를 사용해서 `glTransformFeedbackVarying()` 에서 같이 넘겨줘야 한다. 위 가상 이름은 버퍼의 타입에 대해 1~4개 요소의 빈 공간을 해당 베어링 사이에 만들어 준다.
+>
+>또한, 일련의 베어링 출력을 하나의 버퍼에 INTERLEAVED 로 쓰면서, 동시에 **일부 속성을 다른 버퍼**에 쓰게 하는 것도 가능하다. 이 경우에도 ***가상 베어링 이름*** 인 `gl_NextBuffer` 을 제공해주고 있으며, 이를 사용해서 현재 *TFB Binding point + 1* 에 바인딩된 버퍼에 값을 쓰게끔 한다.
+>
+>물론 이 경우에는, 변환 피드백 자체가 변경이 되므로, `glLinkProgram()` 을 호출해서 링크를 해줘야 한다.
