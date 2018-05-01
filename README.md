@@ -17,8 +17,8 @@ This repository is for studying of OpenGL and other graphic libraries such as Di
 ### On-going
 
 * 2018-01/02 :: Studying OpenGL https://learnopengl.com
-* 2018-03~ :: OpenGL Superbible 6ed
-* 2018-04~ :: DirectX 12를 이용한 3D 게임 프로그래밍 입문
+* Since 2018-03 :: OpenGL Superbible 6ed
+* Since 2018-04 :: DirectX 12를 이용한 3D 게임 프로그래밍 입문
 
 ---
 
@@ -29,10 +29,8 @@ This repository is for studying of OpenGL and other graphic libraries such as Di
 - OpenGL Superbible ed 6 번역서
 - DirectX 12를 이용한 3D 게임 프로그래밍 입문 (프랭크 D. 루나 지음, 류광 옮김)
 
-2018-02-02
-- Moved to new repository. (previous repository name is changed to OPGL16, so it became that these files doesn't match for legacy repo.)
-
-2018-03-20 OpenGL Superbible 6ed 되짚기 중. (Chapter 1, 2, 3)
-2018-03-23 OpenGL Superbible 6ed Chapter 5 Done.
-2018-03-30 DirectX 12를 이용한 3D 게임 프로그래밍 입문 Chapter 5 Done.
-2018-04-30 OpenGL Superbible 6ed Chapter 7 Done.
+* 2018-02-02 :: Moved to new repository. (Previous repository is separated to OPGS16, another own game engine.)
+* 2018-03-20 :: OpenGL Superbible 6ed 되짚기 중. (Chapter 1, 2, 3) 
+* 2018-03-23 :: OpenGL Superbible 6ed Chapter 5 Done. 
+* 2018-03-30 :: DirectX 12를 이용한 3D 게임 프로그래밍 입문 Chapter 5 Done.
+* 2018-04-30 :: OpenGL Superbible 6ed Chapter 7 Done.
