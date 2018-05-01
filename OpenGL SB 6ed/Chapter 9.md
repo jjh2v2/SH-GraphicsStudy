@@ -149,3 +149,63 @@ glUnmapBuffer(GL_UNIFORM_BUFFER);
 
 ![_921](..\Results\OpenGL_sb6\_921.gif)
 
+### 9.2.2 Stencil Test
+
+> Chapter 13. Stencil Testing.md 에서
+>
+> ...**Stencil Testing** 을 실행하게 된다. 이 테스트는 이전의 *Depth testing* 과 같이 무수한 프래그먼트 중 일부만을 골라내는 테스트이다. 따라서 이 테스트를 통과한 나머지 프래그먼트가 Depth test 을 거치게 되고 결과적으로 Screen 에 보이게 된다. 
+
+만약 프레임 버퍼에서, 스텐실 버퍼를 가지고 있다면 해당 프레임 버퍼에 특정 오브젝트를 렌더링함으로써 오브젝트가 그려진 부분만을 마스킹하도록 할 수 있다.
+
+#### A. Functions
+
+스텐실 버퍼를 활성화시키기 위해서는 다음을 적는다.
+
+``` c++
+glEnable(GL_STENCIL_TEST);
+```
+
+그리고, 해당 프레임 버퍼에서 프레임 버퍼의 스텐실 값을 지우기 위해서는 다음과 같이 쓸 수 있다.
+
+``` c++
+glClear(GL_STENCIL_BUFFER_BIT);
+```
+
+그리고 스텐실 버퍼와 상호작용 하는 방법을 제어하기 위해서 OpenGL 은 두 가지 명령을 제공하고 있다.
+
+* [**`glStencilFuncSeparate(face, func, ref, mask)`**](https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glStencilFuncSeparate.xhtml)
+
+  `glStencilFunc(func, ref, mask)` 와 같지만, 위 함수는 GL_FRONT, GL_BACK, GL_FRONT_AND_BACK 중 하나를 지정해서 어떤 지오메트리에 대해 `func` `ref` 값, `mask` & 연산이 적용될 지를 OpenGL 에게 요청한다.
+
+  * `func` :: Specifies the test function. Eight symbolic constants are valid: GL_NEVER, GL_LESS, GL_LEQUAL, GL_GREATER, GL_GEQUAL, GL_EQUAL, GL_NOTEQUAL, and GL_ALWAYS. The initial value is GL_ALWAYS. 자세한 설명은 위 함수를 참고한다.
+  * `ref` : Specifies the reference value for the stencil test. ref is clamped to the range [0,2n−1], where n is the number of bitplanes in the stencil buffer. The initial value is 0. 
+  * `mask` : 참조 값의 어떤 비트들이 버퍼의 값과 비교될 지를 제어한다. 
+
+* [**`glStencilOpSeperate(face, sfail, dpfail, dppass)`**](https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glStencilOpSeparate.xhtml)
+
+  `glStencilOp(sfail, dpfail, dppass)` 와 같지만 이 역시 위 함수와 같이 Face 을 설정가능 하다는 점에서 좀 더 세부적으로 설정이 가능하다. 이 함수는 스텐실 테스트가 통과하거나, Depth Test가 실패하거나, 모든 테스트를 통과시에 어떤 행동을 할지 OpenGL 에게 알리는 함수이다.
+
+  각각 어떤 행동을 취할 수 있는 지는 스텐실 연산 열거형 변수를 통해 설정할 수 있으며, 이 함수는 위의 주소에서 확인이 가능하다.
+
+  만약 스텐실 테스트 마저 실패하면, 프래그먼트가 바로 제거되고 더 이상의 작업은 수행되지 않을 것이다.
+
+| Action         | Description                                                  |
+| -------------- | ------------------------------------------------------------ |
+| `GL_KEEP`      | The currently stored stencil value is kept.                  |
+| `GL_ZERO`      | The stencil value is set to `0`.                             |
+| `GL_REPLACE`   | The stencil value is replaced with the reference value set with glStencilFunc. |
+| `GL_INCR`      | The stencil value is increased by `1` if it is lower than the maximum value. |
+| `GL_INCR_WRAP` | Same as GL_INCR, but wraps it back to `0` as soon as the maximum value is exceeded. |
+| `GL_DECR`      | The stencil value is decreased by `1` if it is higher than the minimum value. |
+| `GL_DECR_WRAP` | Same as GL_DECR, but wraps it to the maximum value if it ends up lower than `0`. |
+| `GL_INVERT`    | Bitwise inverts the current stencil buffer value.            |
+
+> 참고로, Separate 가 붙지 않은 일반 함수는 자동으로 `GL_FRONT_AND_BACK` 을 적용한 것과 마찬가지이다.
+
+#### B. 스텐실 버퍼 갱신 제어하기
+
+스텐실 버퍼에 대한 **개별 비트의 갱신을 제어**하게 할 수도 있다. 
+
+* [**`glStencilMaskSeparate(face, 8bit_mask)`**](https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glStencilMaskSeparate.xhtml)
+  * `mask` :  Initially, the mask is all 1's. Specifies a bit mask to enable and disable writing of individual bits in the stencil planes.
+
