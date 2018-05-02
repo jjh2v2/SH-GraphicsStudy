@@ -209,3 +209,124 @@ glClear(GL_STENCIL_BUFFER_BIT);
 * [**`glStencilMaskSeparate(face, 8bit_mask)`**](https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glStencilMaskSeparate.xhtml)
   * `mask` :  Initially, the mask is all 1's. Specifies a bit mask to enable and disable writing of individual bits in the stencil planes.
 
+### 9.2.3 Depth Test
+
+#### A. Fundamental
+
+스텐실 연산이 완료된 후에 깊이 연산이 활성화 된 상태이라면, OpenGL 은 프래그먼트의 깊이 값을 깊이 버퍼의 기존 값과 비교하는 Depth test 을 거친다. (물론 Geometry Shader 이전에 `gl_Position` 의 값이 최종적으로 끝난 상태라면, *early depth test* 을 수행하기도 한다.)
+
+만약 *Depth Test* 가 실패하면, **프래그먼트는 폐기되고 다음 프래그먼트 연산으로 전달되지 않는다.** *Depth Test* 동안 OpenGL 은 현재 프래그먼트의 좌표에 해당하는 깊이 값 $ z $ 을 읽어서, 바인딩하고 있는 프레임버퍼의 *Depth Buffer (z-buffer)* 의 상응하는 위치에 저장된 $ z $ 값을 읽어 비교한다.
+
+*Depth Test* 는 다음 함수를 사용해서 활성화 및 비활성화 할 수 있다.
+
+``` c++
+glEnable(GL_DEPTH_TEST);
+glDisable(GL_DEPTH_TEST);
+```
+
+그리고, 다음 함수를 사용해서 프래그먼트가 깊이 테스트를 어떻게 통과할 지 설정할 수도 있다.
+
+* [**`glDepthFunc(func_mode)`**](https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glDepthFunc.xhtml)
+
+| Function      | Description                                                  |
+| ------------- | ------------------------------------------------------------ |
+| `GL_ALWAYS`   | The depth test always passes.                                |
+| `GL_NEVER`    | The depth test never passes.                                 |
+| `GL_LESS`     | Passes if the fragment's depth value is less than the stored depth value. |
+| `GL_EQUAL`    | Passes if the fragment's depth value is equal to the stored depth value. |
+| `GL_LEQUAL`   | Passes if the fragment's depth value is less than or equal to the stored depth value. |
+| `GL_GREATER`  | Passes if the fragment's depth value is greater than the stored depth value. |
+| `GL_NOTEQUAL` | Passes if the fragment's depth value is not equal to the stored depth value. |
+| `GL_GEQUAL`   | Passes if the fragment's depth value is greater than or equal to the stored depth value. |
+
+#### B. 깊이 버퍼 갱신 제어하기
+
+* [**`glDepthMask(mask_flag)`**](https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glDepthMask.xhtml)
+  * `flag` : `GL_FALSE` `GL_TRUE` 중 하나로, Depth Test 가 활성화 되었을 때 *z-buffer* 에 새로운 값을 갱신할 수 있도록 할지, 아닐 지를 정할 수 있다. 기본적으로 *GL_TRUE* 로 설정된다.
+
+#### C. 깊이 고정
+
+OpenGL 은 각 프래그먼트의 깊이 $ z $ 을 [0, 1] 까지의 유한한 부동소수점 값으로 표현한다. $ z $ 값이 이 범위 밖에 있는 프래그먼트의 경우에는 클리핑이 자연스럽게 된다. 하지만 이 클리핑을 끄고 임의의 깊이 값을 **[0, 1] 의 값으로 Clamp** 하는 옵션을 제공해주고 있다.
+
+``` c++
+glEnable(GL_DEPTH_CLAMP);
+glDisable(GL_DEPTH_CLAMP);
+```
+
+
+## 9.3 색상 출력
+
+색상 출력 스테이지는 OpenGL 파이프라인에서 *Fragment* 가 *Framebuffer* 에 쓰이기 전에, 최종적으로 어떤 색상을 정할 지 처리하는 마지막 부분이다.
+
+### 9.3.1 Blending
+
+> 기초적인 사항은 OpenGL Tutorial 의 Chapter 14. Blending.md 에서 확인할 수 있다.
+
+#### A. Blending Functions
+
+* [**`glBlendFuncSeparate(srcRGB, dstRGB, srcAlpha, dstAlpha)`**](https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glBlendFuncSeparate.xhtml)
+
+  블렌딩 함수의 인자를 설정할 수 있다. 이 함수를 쓰면, $ RGB$ 와 $ Alpha $ 채널에 대해서 각각 다른 블렌딩 인자를 설정할 수 있다.
+
+* `glBlendFunc(src, dst)` 
+
+  Separate 와는 다르게 간단하게, $ RGBA $ 4 채널에 대해서 블렌딩 인자를 설정할 수 있다.
+
+> 블렌딩 함수의 인자 리스트는 주소의 Parameter 테이블을 참고한다.
+
+블렌딩 함수에 사용할 수 있는 원본 데이터는 4 가지가 존재한다. 하나는 첫 번째 원본 색상 ($ {RGBA}_{s0} $ ) 이며, 대상 색상 ( $ {RGBA}_{d} $ ) 이 존재한다. 나머지 두 개는 두 번째 원본 색상 ( $ {RGBA}_{s1} $ ) 과 상수 색상 (*Constant Color*) ( $ {RGBA}_{c} $ ) 이다.
+
+여기서 상수 색상 ( $ {RGBA}_{c} $ ) 은 `glBlendColor(r, g, b, a)` 로 설정이 가능하다. 
+
+#### B. [이중 원본 블렌딩 (Dual source blending)](https://www.khronos.org/opengl/wiki/Blending#Dual_Source_Blending)
+
+Dual source blending refers to a blending mode, where the Fragment Shader outputs two colors to the same output buffer. To do this, the two outputs must both point to the same buffer index, but with a special parameter that refers to whether it is color 0 or color 1. This can be done in GLSL using the layout qualifier:
+
+``` glsl
+layout(location = 0, index = 0) out vec4 outputColor0;
+layout(location = 0, index = 1) out vec4 outputColor1;
+```
+
+This has *outputColor0* writing to color 0 of buffer 0, while *outputColor1* goes to color 1 of buffer 0. Each buffer can have its own set of two colors.
+
+Dual source blending is activated in a fragment shader by designating (via either method above) that at least one of the output values is going to color 1 of one of the destination buffers. When dual source blending is active for a shader, the number of color buffers that can be written to is no longer GL_MAX_DRAW_BUFFERS, but GL_MAX_DUAL_SOURCE_DRAW_BUFFERS. This implementation-dependent constant represents the number of draw buffers that a fragment shader can output to when using dual-source blending.
+
+**Note:** In virtually every OpenGL implementation and hardware, GL_MAX_DUAL_SOURCE_DRAW_BUFFERS is 1. This applies to 3.x and 4.x hardware alike. For all practical purposes, if you use dual-source blending, you can only write to *one* buffer.
+
+The source color **S** in blending equations is *always* color 0. Color 1 can only be used as a parameter. The parameters that use color 1 are GL_SRC1_COLOR, GL_SRC1_ALPHA, GL_ONE_MINUS_SRC1_COLOR, and GL_ONE_MINUS_SRC1_ALPHA.
+
+> 참고서 번역 질이 매우 안 좋아서 원문을 그대로 긁어 쓰는 게 더 나았음.
+
+#### C. Blending equation
+
+블렌딩 인자를 설정한 뒤에, Source 및 Destination 인자를 어떻게 조합해서 최종 색상 값을 저장하게 할 지를 설정한다.
+
+``` c++
+glBlendEquation(GLenum mode);
+glBlendEquation(GLenum rgb_mode, GLenum alpha_mode);
+```
+
+> 자세한 mode 인자들에 대해서는 다음 주소를 참고한다.
+> https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glBlendEquation.xhtml
+
+### 9.3.3 Color Masking
+
+#### A. Definition
+
+프래그먼트가 쓰이기 전에 마지막으로 수정할 수 있는 단계다. 이 단계에서는 색상 버퍼의 각 색상 채널에 대한 색상 갱신 여부를 끄고 킬 수 있다. (마스킹이 가능하다)
+
+* [**`glColorMask(r, g, b, a)`**](https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glColorMask.xhtml)
+
+  $ RGBA $ 각 채널에 GL_FALSE, GL_TRUE 을 써서 값 쓰기를 활성화시키거나 비활성화하도록 할 수 있다. 기본으로는 모두 GL_TRUE 로 쓰기가 활성화 되어있다.
+
+  만약, 별도의 프레임 버퍼에서 여러 컬러 버퍼가 있을 때, 컬러 버퍼의 바인딩 인덱스에 따라 각 채널의 마스킹 (쓰기를 막는 것) 여부를 결정하고 싶다면, `glColorMaski(index, r, g, b, a)` 을 쓰면 된다.
+
+#### B. 실제 예시?
+
+> **Shadow volume** is a technique used in [3D computer graphics](https://en.wikipedia.org/wiki/3D_computer_graphics) to add shadows to a rendered scene.
+
+*Shader volume* 에 깊이 정보를 채워넣고 싶을 때, 중요한 것은 깊이 정보 $ z $ 값 뿐이기 때문에 `glColorMask()` 로 색상 채널의 갱신을 막게 할 수도 있다.
+
+또는 [Decal](https://www.google.com/search?client=firefox-b-ab&biw=1536&bih=781&tbm=isch&sa=1&ei=OR_pWvvxC8HJ0gTahJ7YBw&q=decal+glsl&oq=decal+glsl&gs_l=psy-ab.3...296.702.0.870.5.4.0.0.0.0.112.112.0j1.1.0....0...1c.1.64.psy-ab..4.0.0....0.e5vI07hWXBs#imgrc=YoTppy8aa5zOpM:) 을 바닥에 그리게 하고 싶으면, 깊이 쓰기를 비활성화 시켜서 `glDepthMask()`  깊이 데이터가 변경되는 것을 막을 수도 있다. (z-fighting 을 막을 수도?)
+
+이 때 마스킹에서 중요한 점은, `gl` 함수를 사용해서 마스킹을 설정한 뒤에도 일반 렌더링을 바로 호출할 수 있다는 점이다. 마스킹을 적절하게 사용하면 특정 값을 쓰지 않기 하기 위해 쉐이더를 변경할 필요도 없으며 버퍼를 Detach 할 필요도 없고, 프레임 버퍼나 드로우 버퍼를 변경할 필요도 없게 된다.
