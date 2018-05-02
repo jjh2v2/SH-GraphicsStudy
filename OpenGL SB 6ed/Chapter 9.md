@@ -331,7 +331,7 @@ glBlendEquation(GLenum rgb_mode, GLenum alpha_mode);
 
 이 때 마스킹에서 중요한 점은, `gl` 함수를 사용해서 마스킹을 설정한 뒤에도 일반 렌더링을 바로 호출할 수 있다는 점이다. 마스킹을 적절하게 사용하면 특정 값을 쓰지 않기 하기 위해 쉐이더를 변경할 필요도 없으며 버퍼를 Detach 할 필요도 없고, 프레임 버퍼나 드로우 버퍼를 변경할 필요도 없게 된다.
 
-### 9.4 Offscreen Rendering
+## 9.4 Offscreen Rendering
 
 > FrameBuffer 에 대한 또 다른 설명은 OpenGL Tutorial/Chapter 16. Framebuffers.md 을 참고한다.
 
@@ -531,4 +531,143 @@ GLenum glCheckFramebufferStatus(GLenum target);
 ```
 
 > https://www.khronos.org/opengl/wiki/GLAPI/glCheckFramebufferStatus
+
+## 9.5 Anti-aliasing
+
+> 9.4.4 Stereo rendering 은 하드웨어에서 지원하지 않는 관계로 넘어감.
+
+다운 샘플링을 할 때 생기는 계단 현상 등을 제거하거나 줄이는 방법을 *Anti-aliasing* 기법이라고 한다.
+
+### 9.5.1 Using filtering 
+
+*AA* 을 적용하는 방법 중 하나는 `glEnable(GL_LINE_SMOOTH | GL_POLYGON_SMOOTH)` 을 사용해서 프리미티브를 렌더링 할 때 필터링 하는 방법이다. 이 방법을 사용하면 OpenGL 은 프리미티브가 차지하는 픽셀의 양을 계산해서 적절한 알파값을 생성한다. 그 후에 쉐이더에서 생성한 알파값과 다시 곱해져 블렌딩 효과를 주게 된다.
+
+이 때 덤으로 필요한 것은 블렌딩 기능을 활성화 시키고, 블렌딩 함수를 설정해야 한다는 것이다.
+
+``` c++
+glEnable(GL_BLEND);
+glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+glEnable(GL_POLYGON_SMOOTH);
+```
+
+하지만 이 경우에는 큰 단점이 존재한다. 다음과 같이 가장자리가 부드럽게 나오는 것은 좋으나,
+
+![_951](..\Results\OpenGL_sb6\_951.png)
+
+두 개의 삼각형이 인접하고 있는 가장자리 부근에서 선이 생기는 것을 확인할 수 있다.
+
+왜냐면 이는 필터링을 통한 *AA* 을 구현할 때 알파값의 블렌딩을 통해서 가장자리를 부드럽게 한다는 개념에서 발생하는 오류인데, 두 인접 삼각형 사이의 가장자리의 픽셀이 각각의 프리미티브가 정확히 반을 차지한다고 하면 알파값이 $ 1.0 $ 이 되는 것이 아니라 서로 곱해지고 더해져서 최종 $ 0.75 $ 알파값의 회색이 되버린다.
+
+폴리곤 가장자리가 픽셀을 통과하고 화면에 렌더링 될 때 마다, OpenGL 은 **어떤 부분이 픽셀을 차지하고 그렇지 않은지를 전부 확인할 수 있는 방법이 존재하지 않는다.** 아무튼 이러한 문제를 해결하기 위해서는 **픽셀의 샘플링 수를 늘리는 (물리적이든 어떻게 되든)** 방법을 써서 *AA* 을 구현할 수 있다.
+
+### 9.5.2 MSAA
+
+> https://www.khronos.org/opengl/wiki/Multisampling
+
+이미지의 샘플율을 증가시키기 위해 OpenGL 은 화면 상의 각 픽셀에 대해 여러 샘플을 저장하는 방식을 지원한다. 이 기법을 **MSAA (Multisample Anti-aliasing)** 이라고 한다. 각 프리미티브를 한 번만 샘플링 하지 않고, OpenGL 은 픽셀 안의 여러 위치에서 프리미티브를 샘플링하고자 한다.
+
+만약 그 중에서 프리미티브가 존재하는 임의 위치에 대해 쉐이더를 실행하고, 쉐이더가 생성한 색상은 픽셀 내의 임의 위치에 존재하는 샘플 모두에 써지게 된다.
+
+*Multi sample framebuffer* 을 만들면 멀티 샘플링이 자동으로 활성화된다. 하지만 멀티 샘플 프레임버퍼를 사용하면서도 *MSAA* 을 사용하고 싶지 않을 때는 다음과 같이 `glEnable` 을 사용해서 키고 끌 수 있다.
+
+``` c++
+glEnable(GL_MULTISAMPLE);
+glDisable(GL_MULTISAMPLE);
+```
+
+### 9.5.3 Multi-sample texture
+
+### 9.5.4 샘플별 쉐이딩
+
+### 9.5.5 중심 샘플링
+
+
+
+## 9.6 고급 프레임버퍼 포맷
+
+윈도우 시스템에서 제공하고 있는 기존 프레임 버퍼나, 사용자 정의 프레임 버퍼에 텍스쳐를 렌더링 할 때는 대개 컬러 버퍼의 *type* 이 `GL_RGBA8` 와 같은 각 채널 당 $ N $ 비트 정수형 포맷으로 구성된다. 하지만 쉐이더에서는 컬러 값을 출력할 때, `vec4 float` 으로 넘기는 걸 자연스럽게 확인할 수 있다.
+
+사실 OpenGL 은 프레임버퍼의 각 버퍼의 픽셀 타입을 *부동소수점 형태, 정수형, 음수, 8비트보다 큰 수* 등으로 설정해서 값을 갱신하도록 할 수 있다.
+
+### 9.6.1 Rendering without any attachment
+
+프레임버퍼를 하나 생성해서, *아무것도 어태치 시키지 않고* 쉐이더를 사용하는 것도 가능하다. 하지만 이 경우에는 출력된 데이터가 저장될 곳이 없기 때문에 폐기된다. 하지만 프래그먼트 쉐이더는 그냥 텍스쳐 버퍼에 쓰는 것 외에도 **`imageStore()`** 와 같은 내장 함수를 사용해서 지정된 이미지 (`gimage`) 에 텍셀의 값을 저장할 수도 있고 *atomic* 한 연산을 사용해서 카운터를 증가시키거나 감소할 수도 있다.
+
+> imageStore
+> https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/imageStore.xhtml
+> https://computergraphics.stackexchange.com/questions/4388/binary-scene-voxelization-using-imagestore-problem
+>
+> atomicCounterIncrement
+> https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/atomicCounterIncrement.xhtml
+> http://www.geeks3d.com/20120309/opengl-4-2-atomic-counter-demo-rendering-order-of-fragments/
+
+보통 렌더링을 할 때, 바인딩 된 프레임 버퍼에서는 하나 이상의 어태치먼트에 바인딩 된 버퍼의 *최대 넓이, 높이, 레이어 수, 샘플 개수* 등을 가져와서 렌더링하는데 정보로 쓴다. 이런 속성들은 뷰포트를 정의하는 크기 등 여러가지 설정에서 쓰일 수 있다.
+
+#### A. Functions
+
+하지만 프레임버퍼에서 **Attachment 가 없다면, 텍스쳐 메모리의 양의 제한이 없어질 수 있다.** 그러나 해당 프레임버퍼는 이 정보를 다른 곳으로부터 얻어와야 한다. 
+
+각 프레임버퍼 객체는, Attachment 가 없으면 **인자 값을 직접 설정**해줘야 한다. 이런 인자들을 수정하기 위해서는 다음과 같은 함수를 사용한다.
+
+``` c++
+void glFramebufferParameteri(GLenum target, GLenum pname, GLint param);
+```
+
+* `target` : 어떤 프레임버퍼 객체가 바인딩이 될지 결정한다. `GL_FRAMBUFFER` `GL_DRAW_` `GL_READ_` 등이 바인딩될 수 있다. 이 때 일반 인자는 `_DRAW_` 와 동일하다는 것을 알아두자.
+
+* `pname` : 어떤 인자를 변경할지 지정한다.
+
+  > 인자는 다음 주소에서 찾아볼 수 있다.
+  > https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glFramebufferParameteri.xhtml
+
+* `param` : 해당 인자에 대해 변경할 값을 지정할 수 있다.
+
+어태치먼트가 없는 프레임버퍼의 최대 크기는 매우 커질 수 있다. 왜냐면 실제로 렌더링할 어태치먼트가 없기 때문이다.
+
+#### B. Example
+
+다음은 예시 코드이다. 프레임버퍼를 하나 생성해서, 가상으로 10000 x 10000 의 버퍼가 있다고 알리는 코드이다.
+
+``` c++
+glGenFramebuffers(1, &m_fbo);
+glBindFrameBuffer(GL_FRAMEBUFFER, m_fbo);
+glFramebufferParameteri(GL_FRAMEBUFFER, GL_FRAMEBUFFER_DEFAULT_WIDTH, 10'000);
+glFramebufferParameteri(GL_FRAMEBUFFER, GL_FRAMEBUFFER_DEFAULT_HEIGHT, 10'000);
+```
+
+이렇게 하면 `gl_FragCoord` 의 변수의 요소 $ (x, y) $ 는 $ 0 $ 에서 $ 9,999 $ 까지 될 것이다.
+
+### 9.6.2 floating-point framebuffer
+
+프레임버퍼에서 부동소수점 포맷의 어태치먼트를 사용하게 할 수도 있다. 사실, OpenGL 렌더링 파이프라인은 내부적으로 부동소수점 데이터와 잘 작동하지만 원본과 타깃은 기껏해야 고정소수점 포맷을 사용한다. 따라서 최종적으로는 모든 값이 $ 0 $ 에서 $ 1 $ 사이로 고정된다.
+
+그래서 컬러 (색상) 및 쉐이딩에 일반 32비트 부동소수점을 사용하게 할 수도 있다. 하지만 만약 색상 당 8비트만을 지원하는 모니터에서 렌더링하게 되면 고정 소수점으로 맵핑이 되면서 값 정보가 날아가버린다. 그렇지만 **부동소수점 정밀도로 텍스쳐에 렌더링하거나, 부동 데이터가 고정 소수점 출력 포맷에 어떻게 매핑되는지도 제어할 수 있다.**
+
+이렇게 부동소수점 포맷을 이용해서 렌더링을 실시하는 행위를 ***HDR(High dynamic-range)*** 이라고 한다.
+
+#### A. 부동소수점 포맷 사용하기
+
+부동소수점 포맷의 버퍼를 사용하기 위해서는 `glTexStorage2D` 와 같은 함수에서 내부 포맷을 `GL_RGBA32F` `GL_RGBA16F` 와 같은 것으로 생성하면 된다.
+
+``` c++
+glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA16F, width, height);
+glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA32F, width, height);
+```
+
+여기서 부동소수점 포맷은 *suffix* `F` 가 붙음을 알아야 한다.
+
+> 다음 주소에서 부동소수점 포맷 리스트를 확인할 수 있다.
+> https://www.khronos.org/registry/OpenGL-Refpages/es3.0/html/glTexImage2D.xhtml
+
+#### B. HDR (high dynamic range)
+
+*HDR* 을 사용해서 *light bloom, lens flare, light reflection, light refaction, sunset light, dust, particle* 등의 여러 고급 효과들을 구현할 수 있다. 부동소수점 버퍼에 대한 *HDR* 은, **밝은 부분을 밝게, 어두운 부분을 더 어둡게 하면서도 디테일을 함께 볼 수 있**도록 한다. 
+
+단일 이미지에 어둡고 밝은 영여에 대해서 모든 디테일을 저장할 수 있는 것은 부동소수점 데이터를 사용하기 때뭉니다. 하지만 이 부동소수점의 이미지를 0 에서 255 의 값으로 표시되는 동적 이미지로 생성할려면 (트루컬러) ***tone mapping*** 을 사용해서 수행할 수 있다.
+
+#### C. Tone mapping
+
+일반 컴퓨터에서는 부동소수점 데이터를 디스플레이에 표현할 수 없기 때문에 표시할 수 있는 색상으로 **Tone mapping** 을 수행해야 한다. *Tone Mapping* 은 일련의 색상 데이터를 다른 색상 데이터 혹은 다른 색상 공간으로 옮기는 작업을 말한다.
+
+#### D. Tone mapping example
 
