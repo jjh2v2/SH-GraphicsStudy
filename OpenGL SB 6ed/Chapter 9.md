@@ -330,3 +330,50 @@ glBlendEquation(GLenum rgb_mode, GLenum alpha_mode);
 또는 [Decal](https://www.google.com/search?client=firefox-b-ab&biw=1536&bih=781&tbm=isch&sa=1&ei=OR_pWvvxC8HJ0gTahJ7YBw&q=decal+glsl&oq=decal+glsl&gs_l=psy-ab.3...296.702.0.870.5.4.0.0.0.0.112.112.0j1.1.0....0...1c.1.64.psy-ab..4.0.0....0.e5vI07hWXBs#imgrc=YoTppy8aa5zOpM:) 을 바닥에 그리게 하고 싶으면, 깊이 쓰기를 비활성화 시켜서 `glDepthMask()`  깊이 데이터가 변경되는 것을 막을 수도 있다. (z-fighting 을 막을 수도?)
 
 이 때 마스킹에서 중요한 점은, `gl` 함수를 사용해서 마스킹을 설정한 뒤에도 일반 렌더링을 바로 호출할 수 있다는 점이다. 마스킹을 적절하게 사용하면 특정 값을 쓰지 않기 하기 위해 쉐이더를 변경할 필요도 없으며 버퍼를 Detach 할 필요도 없고, 프레임 버퍼나 드로우 버퍼를 변경할 필요도 없게 된다.
+
+### 9.4 Offscreen Rendering
+
+> FrameBuffer 에 대한 또 다른 설명은 OpenGL Tutorial/Chapter 16. Framebuffers.md 을 참고한다.
+
+### 9.4.1 Multiple Framebuffer Attachment
+
+사용자 정의 프레임버퍼를 사용하면, 다중으로 버퍼를 붙일 수 있다. 즉, 여러 텍스쳐를 하나의 프레임버퍼에 어태치시켜서 하나의 쉐이더로 해당 텍스쳐들에 동시에 렌더링하게 할 수 있다. `glFramebufferTexture(target, attachment_mode, texture_id, level)` 에 `GL_COLOR_ATTACHMENTx` 와 같은 인자를 사용해서 프래그먼트를 한번 렌더링해서 각각의 버퍼에 각기 다른 결과값을 갱신하게 할 수도 있다.
+
+예를 들면 다음과 같이 설정할 수 있다.
+
+``` c++
+constexpr GLenum draw_buffers[] {
+    GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2
+};
+
+glGenFramebuffers(1, &fbo);
+glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+glGenTextures(3, color_texture.data());
+for (int i = 0; i < 3; ++i) {
+    glBindTexture(GL_TEXTURE_2D, color_texture[i]);
+    glTexImage2D(GL_TEXTURE_2D, 9, GL_RGBA8, 512, 512);
+    
+    /*! 기본 필터 인자를 설정한다.. */
+    
+    glFramebufferTexture(GL_FRAMEBUFFER, draw_buffers[i], color_texture[i], 0);
+}
+
+glGenTexture(1, &depth_texture);
+glBindTexture(GL_TEXTURE_2D, depth_texture);
+glTexImage2D(GL_TEXTURE_2D, 9, GL_DEPTH_COMPONENT32F, 512, 512);
+glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, depth_texture, 0);
+
+glDrawBuffers(3, draw_buffers);
+```
+
+그리고 해당 프레임버퍼와 같이 사용하는 쉐이더에서는, `GL_COLOR_ATTACHMENT 0 1 2` 에 바인딩 된 각각의 컬러 버퍼에 '동시에' 색상 값을 갱신하는 것을 시도하기 위해 (마스킹이 되어있을지도 모르니까) 다음과 같이 프래그먼트 쉐이더 코드에 적는다. 
+
+``` glsl
+layout (location = 0) out vec4 color_0;	// to GL_COLOR_ATTACHMENT0
+layout (location = 1) out vec4 color_1; // to GL_COLOR_ATTACHMENT1
+layout (location = 2) out vec4 color_2; // to GL_COLOR_ATTACHMENT2
+```
+
+### 9.4.2 레이어 렌더링
+
+**배열 텍스쳐 (Texture Array)** 란, 쉐이더에서 **인덱스**로 참조할 수 있는 2D 혹은 1D 텍스쳐들의 배열 집합이다. 배열 텍스쳐를 Framebuffer 객체에 붙이고, 지오메트리 쉐이더를 사용해서 어떤 레이어에 결과 프리미티브를 렌더링하게 할 지를 결정할 수 있다. 
