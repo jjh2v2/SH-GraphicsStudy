@@ -474,3 +474,61 @@ vs_out.tc = vec3(vertices[vid].xy + vec2(0.5), float(iid))
 
 ![_942](../Results/OpenGL_sb6/_942.gif)
 
+#### B. 3D 텍스쳐로 렌더링하기?
+
+3D 텍스쳐로 렌더링 하는 방식도 위와 거의 동일하다. 3D 텍스쳐를 가져온 뒤에 이것을 프레임버퍼의 `GL_COLOR_ATTACHMENT0` 에 바인딩해서 `gl_Layer` 출력을 정하면 된다. 이 때 `gl_Layer` 에 쓰는 값은 3D 텍스쳐 슬라이스의 $ z $ 값이 된다.
+
+동일한 텍스쳐의 여러 슬라이스 (레이어드 컬러 버퍼 등) 에 동시에 렌더링하는 것도 가능한데 이 경우에는 다음과 같은 함수를 호출한다.
+
+``` c++
+void glFramebufferTextureLayer(GLenum target,
+  	GLenum attachment,
+  	GLuint texture,
+  	GLint level,
+  	GLint layer);
+```
+
+> https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glFramebufferTextureLayer.xhtml
+
+이 함수는 `glFramebufferTexture` 와 비슷하지만, layer 의 개념이 추가되었으며 따라서 `GL_TEXTURE_2D_ARRAY` 와 같은 레이어드 버퍼의 각 레이어 인덱스를 적어서 어태치먼트를 붙일 수 있다.
+
+### 9.4.3 Framebuffer Completeness
+
+*FBO* 가 제대로 설정이 잘 되었는지를 확인하기 위해서는 *프레임버퍼 완전성* 을 확인하는 수 밖에 없다. 이 완전성은 *Texture Completeness* 와 동일하며, 텍스쳐에 필요한 모든 밉맵 레벨을 지정된 크기, 포맷 등으로 설정하지 않았다면 그 텍스쳐는 불완전하며 사용될 수 없다는 것과 비슷한 기준을 가진다.
+
+#### Attachment Completeness
+
+어태치먼트가 완전하지 않은 경우에는 다음과 같은 상황이 있을 때 완전함이 충족되지 않는다.
+
+* 이미지가 어태치된 객체에 연결되지 않았다.
+* 어태치된 이미지의 넓이나 높이가 0 이다.
+* 비색상 렌더링 포맷이 색상 어태치먼트에 연결되었거나, 비깊이 포맷이 깊이 어태치먼트에 연결되었다.
+* 스텐실 포맷 역시 다른 어태치먼트에 연결된 경우.
+
+불완전함이 발생한다.
+
+#### Total Framebuffer Comp
+
+* glDrawBuffers() 로 출력을 어태치했지만, 이미지가 어태치 되지 않은 경우
+* 내부 포맷의 조합을 드라이버에서 지원하지 않는 경우
+
+#### 프레임버퍼 확인하기
+
+An FBO that is valid for use is said to be "framebuffer complete". To test framebuffer completeness, call this function:
+
+```
+ GLenum glCheckFramebufferStatus(GLenum target);
+```
+
+You are not required to call this manually. However, using an incomplete FBO is an error, so it's always a good idea to check.
+
+The return value is GL_FRAMEBUFFER_COMPLETE  if the FBO can be used. If it is something else, then there is a  problem. Below are the rules for completeness and the associated return  values you will receive if they are not followed.
+
+만약 위 함수를 써서 `GL_FRAMEBUFFER_COMPLETE` 가 나오지 않았다면 다음 함수를 통해서 세부 사항을 확인할 수 있다.
+
+``` c++
+GLenum glCheckFramebufferStatus(GLenum target);
+```
+
+> https://www.khronos.org/opengl/wiki/GLAPI/glCheckFramebufferStatus
+
