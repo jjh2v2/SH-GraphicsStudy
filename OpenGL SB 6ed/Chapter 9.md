@@ -377,3 +377,100 @@ layout (location = 2) out vec4 color_2; // to GL_COLOR_ATTACHMENT2
 ### 9.4.2 레이어 렌더링
 
 **배열 텍스쳐 (Texture Array)** 란, 쉐이더에서 **인덱스**로 참조할 수 있는 2D 혹은 1D 텍스쳐들의 배열 집합이다. 배열 텍스쳐를 Framebuffer 객체에 붙이고, 지오메트리 쉐이더를 사용해서 어떤 레이어에 결과 프리미티브를 렌더링하게 할 지를 결정할 수 있다. 
+
+#### A. 예제
+
+이 예제는 16 개의 2D 텍스쳐를 컬러 버퍼로 바인딩하고, 배열로 바인딩해서 (`GL_TEXTURE_2D_ARRAY`) 지오메트리에서 `gl_InvocationID` 및 `gl_Layer` 라는 내장 변수를 사용해서 16 개의 버퍼에 텍스쳐 저장을 한 후, 이를 다시 실제 렌더링으로 보여주는 예제이다.
+
+#### startup()
+
+16 개의 최종 컬러 버퍼를, 2D 텍스쳐 배열로 만들기 위해서는 `glTexStorage3D` 와, *target* 을 `GL_TEXTURE_2D_ARRAY` 로 써서 $ N $ 층의 2D 레이어 버퍼를 만들 수 있다.
+
+``` c++
+glGenTextures(1, &array_texture);
+glBindTexture(GL_TEXTURE_2D_ARRAY, array_texture);
+glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_RGBA8, 256, 256, 16);
+
+glGenTextures(1, &array_depth);
+glBindTexture(GL_TEXTURE_2D_ARRAY, array_depth);
+glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_DEPTH_COMPONENT32, 256, 256, 16);
+```
+
+이 경우, 컬러 버퍼가 될 버퍼의 내부 타입은 $ RGBA $ 8비트 총 4바이트의 정보를 가지며, 256 x 256 픽셀의 공간을 가지고 $ 16 $ 층의 레이어가 된다. 그리고 서브맵? 밉맵 수준은 1 단계로 설정한다.
+
+*Depth buffer* 의 경우에도 각 층마다 만들어야 하는데, 이 때는 각 픽셀의 정보는 4 Byte 부동소수점 형을 가진다.
+
+``` c++
+glGenFramebuffers(1, &m_layered_fbo);
+glBindFramebuffer(GL_FRAMEBUFFER, m_layered_fbo);
+glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, array_texture, 0);
+glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, array_depth, 0);
+```
+
+그리고 커스텀 프레임 버퍼에 어태치먼트를 정해서 바인딩 한다. $ 0 $ 의 의미는, 해당 밉맵 수준에서 1 번째 수준을 사용하겠다는 것이다. `GL_TEXTURE_2D_ARRAY` 로 **레이어드 컬러 버퍼**를 만든 경우에는 `GL_COLOR_ATTACHMENT0` 을 설정해주면, $ 0 $ 에서 $ N $ 까지 연속적으로 인덱스를 가지게 된다. 이렇게 되면, 나중에 *Geometry shader* 에서 `gl_Layer` 및 `gl_InvocationID` 으로 연속된 레이어 버퍼 중 임의 버퍼에 프리미티브를 출력할 수 있다.
+
+#### render()
+
+##### UpdateMatrixBuffers()
+
+`GL_UNIFORM_BUFFER` 로 16 개의 렌더링 시도마다 각기 다른 PVM 매트릭스를 적용하고자 바인딩 된 *m_transform_ubo* 에 대해서 `glMapBufferRange()` 로 값을 다시 새로 맵핑한다. 해당 변수는 지오메트리 쉐이더 코드의 블록 인터페이스와 같은 바이트 구조를 가진다.
+
+``` c++
+layout (binding = 0) uniform BLOCK {
+    mat4 proj_matrix;
+    mat4 mv_matrix[16];
+};
+```
+
+##### RenderLayerFragments()
+
+이 함수에서는 $ 16 $ 개의 레이어드 컬러 버퍼에 `gl_Layer` `gl_InvocationID` 을 사용해서 각각 프리미티브를 전송해 오프스크린 렌더링을 하도록 한다. 이 때 컬러 버퍼의 첫 위치는 `GL_COLOR_ATTACHMENT0` 에 바인딩 되어 있으므로 `glDrawBuffers()` 을 통해서 해당 버퍼에 그리겠음을 바인딩해줘야 한다.
+
+* [**`void glDrawBuffer(GLenum buf)`**](https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glDrawBuffer.xhtml)
+
+  specify which color buffers are to be drawn into. 
+  The initial value is GL_FRONT for single-buffered contexts, and GL_BACK for double-buffered contexts. For framebuffer objects, GL_COLOR_ATTACHMENT$m$ and GL_NONE enums are accepted, where $m$ is a value between 0 and GL_MAX_COLOR_ATTACHMENTS.
+
+##### in gslayers.gs.glsl
+
+우선, $ 16 $ 개의 버퍼에 프리미티브를 전송해야 하기 때문에, `varying` 으로 정점의 그룹을 읽어올 때 `invocations = 16` 으로 설정하여 삼각형 정점 그룹을 16 번 가져오도록 한다.
+
+``` c++
+layout (invocations = 16, triangles) in;
+layout (triangle_strip, max_vertices = 3) out;
+```
+
+그리고 *main* 함수에서는 출력될 정점의 내장 변수인 `gl_Layer` 을 `gl_InvocationID` 로 설정해서, *GL_COLOR_ATTACHMENT0* 에서 주욱 내려가는 컬러 버퍼에 정점 출력을 하고, 최종적으로 삼각형 프리미티브를 출력할 수 있도록 한다.
+
+``` c++
+for (i = 0; i < gl_in.length(); i++) {
+    gs_out.color = colors[gl_InvocationID];
+    gs_out.normal = mat3(mv_matrix[gl_InvocationID]) * gs_in[i].normal;
+    gl_Position = proj_matrix * mv_matrix[gl_InvocationID] * gl_in[i].gl_Position;
+    gl_Layer = gl_InvocationID;
+    EmitVertex();
+}
+EndPrimitive();
+```
+
+##### 본 함수
+
+렌더링을 해서 $ 16 $ 개의 버퍼에 오프스크린 렌더링을 한 이후에는, 이것을 실제 후면 버퍼에 렌더링해서 화면에 표시해야 한다. 여기서 `glDrawBuffer` 함수로 `GL_COLOR_ATTACHMENT0` 을 `GL_BACK` 으로 되돌린다. 또한, `glBindTexture(GL_TEXTURE_2D_ARRAY, array_texture)` 으로 현재 만들어진 *layered color buffer* 을 바인딩해서 쉐이더에서 쓸 수 있도록 한다.
+
+그리고 *Instancing* 을 통해 `gl_InstanceID` 을 쉐이더의 텍셀의 $ z $ 값으로 지정하게 함으로써 레이어드 컬러 버퍼의 층에 존재하는 적절한 텍셀을 프래그먼트 쉐이더에서 찾을 수 있도록 한다.
+
+        glBindTexture(GL_TEXTURE_2D_ARRAY, array_texture);
+        glDisable(GL_DEPTH_TEST);
+    
+        glBindVertexArray(vao);
+        glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, 16)
+``` c++
+int iid = gl_InstanceID;
+// Do something...
+vs_out.tc = vec3(vertices[vid].xy + vec2(0.5), float(iid))
+```
+
+따라서 다음과 같은 결과를 얻을 수 있다.
+
+![_942](../Results/OpenGL_sb6/_942.gif)
+
