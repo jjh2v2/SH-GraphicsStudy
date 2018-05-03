@@ -313,3 +313,73 @@ OpenGL 에서 *sRGB* 색상 공간을 사용하려면 `_SRGB` 내부 포맷을 �
 
 ### 9.7.1 점에 텍스쳐 입히기
 
+포인트 스프라이트는 사용하기 쉽다. 이전처럼 버퍼를 만들어서 어떻게 해야하느니 다른 방식으로 어태치먼트를 만드느니가 아니라 단순히 **2D 텍스쳐를 바인딩하고, 프래그먼트 쉐이더 내에서 texture() 함수에 `gl_PointCoord`** 로 읽으면 된다.
+
+``` c++
+layout (binding = 0) uniform sample2D starImage;
+void main(void) {
+    vFragColor = texture(starImage, gl_PointCoord) * vStarColor;
+}
+```
+
+여기서 `gl_PointCoord` 는 OpenGL 이 알아서 생성해 주기 때문에 해당 좌표를 조작하거나 움직이거나 가공하는 것은 불가능하다. 또한 포인트 스프라이트를 만들기 위해서는 `glDraw` 호출 시에 프리미티브를 `GL_POINTS` 혹은 `GL_PATCHES` 로 써야 한다.
+
+### 9.7.2 별우주 렌더링 하기
+
+파티클을 사용해서 별우주를 렌더링 해본다.
+
+> Chapter9/_972_starfield.cc 에서 소스코드 확인이 가능하다.
+
+#### render(double currentTime)
+
+현재 포인트 스프라이트에 적용할 텍스쳐 및 정점들은 `GL_DEPTH` 의 영향을 받지 말아야한다. 왜냐면 깊이 테스트 시에, 텍스쳐의 반투명한 부분에 의해서 뒤쪽에 비쳐야할 다른 포인트 스프라이트가 잘려나가기 때문이다. 사실 이 경우에는 모든 별 정점에 대해 깊이 순으로 정렬을 해야 하는데 ( $ O(n\log(n)) $ ) 매 프레임마다 정렬을 하는 것은 상당한 비용이 든다.
+
+또한, `GL_BLEND` 를 사용해서 스프라이트 간의 색상 혼합을 할 때에도 `glBlendFunc(GL_ONE, GL_ONE)` 을 적용해서 텍스쳐 그대로 색이 반영될 수 있도록 했다. 또한 점 크기 프로그램 모드를 사용하여 **버텍스 쉐이더에서 `gl_PointSize` 변수를 활성화 시킨 것을 볼 수 있다.**
+
+``` c++
+glEnable(GL_BLEND);
+glBlendFunc(GL_ONE, GL_ONE);
+
+glBindVertexArray(star_vao);
+
+glEnable(GL_PROGRAM_POINT_SIZE);
+glDrawArrays(GL_POINTS, 0, k_num_stars);
+```
+
+#### vertex shader source
+
+`fract()` 함수는 입력 값에서 소수점만을 빼서 돌려주는 함수이다. 그리고 이전에 `GL_PROGRAM_POINT_SIZE` 을 활성화 시켜줬기 때문에 `gl_PointSize` 가 쉐이더 코드에서 값을 변경할 수 있게 되었다.
+
+#### fragment shader source
+
+`texture` 함수와 `gl_PointCoord` 값을 사용해서 포인트 스프라이트를 렌더링한다.
+
+결과는 다음과 같다.
+
+![_972](../Results/OpenGL_sb6/_972.gif)
+
+### 9.7.3 점 인자 좌표 조정
+
+포인트 스프라이트의 텍스쳐 좌표 원점은, 기존 텍스쳐 좌표와는 다르게 `GL_UPPER_LEFT` (좌상단) 에서 시작한다. 이를 기존 텍스쳐에서 그래왔던 것 처럼 `GL_LOWER_LEFT` (좌하단) 으로 바꾸고 싶으면 다음과 같이 함수를 호출하면 된다.
+
+``` c++
+glPointParameteri(GL_POITN_SPRITE_COORD_ORIGIN, GL_LOWER_LEFT);
+```
+
+포인트 스프라이트 혹은 일반 점의 여러 기능에 대한 설정은 위 함수, **`glPointParameteri()`** 을 사용하면 된다.
+
+### 9.7.5 점 회전하기
+
+OpenGL 에서 **점 자체는 축 정렬된 정사각형으로 렌더링**되기 때문에 포인트 스프라이트를 회전 시키려면은 최종 텍스쳐 좌표를 변경해야 한다. 그렇게 하려면 단순히 쉐이더에서 2D 회전 행렬을 행성하고, `gl_PointCoord` 에 $ z $ 축으로 회전시키도록 하면 된다.
+
+``` c++
+const vec2 pt = gl_PointCoord - 0.5f;
+gl_FragColor = texture(sprite_texture, rotation_matrix * pt + vec2(0.5));
+```
+
+회전을 하는 경우에도 점은 정방형을 유지한다.
+
+
+
+## 9.8 이미지에서 불러오기
+
