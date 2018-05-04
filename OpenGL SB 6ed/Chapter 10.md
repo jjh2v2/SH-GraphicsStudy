@@ -346,3 +346,8 @@ imageStore(output_image, P1.yx, vec4(shared_data[P1.x], i1.a));
 
 결과는 Result/OpenGL sb6/_1021.mp4 을 본다. (gif 올리기에는 용량이 너무 큼)
 
+만약 리소스를 줄이고 싶다면 따로 버퍼를 만들어서 거기에 깊이 값을 올리던지, 아니면 포맷을 용량이 작은 것으로 줄여서 올리던지 하는 방법이 있다.
+
+### 10.2.2 Flocking algorithm using compute shader
+
+> 나중에 할 것임.
