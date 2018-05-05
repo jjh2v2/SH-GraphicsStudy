@@ -360,3 +360,72 @@ void main() {
 
 결과는 Result/Opengl_Sb6/_1217 을 보면 알 수 있다.
 
+### 12.1.8 Fog
+
+
+
+## 12.2 Non-Photo-Realistic Rendering (NPR)
+
+지금까지는 현실을 모방한 무언가 그럴싸한 것들을 렌더링해왔다면, 이 절에서 다룰 것들은 연필 스케치 효과나 완전히 추상적인 방식을 사용해서 렌더링할 것이다. 이런 현실적이지 않은 렌더링 기법들을 **NRP** 이라 한다. (약어)
+
+### 12.2.1 Cel Shading 
+
+> Cell 이 아니다!
+
+![cel_shading](https://static.raru.co.za/cover/2016/03/14/4425134-f125-1-l.jpg?v=1458028816)
+
+대부분의 텍스쳐 매핑 예제에서, 2D 텍스쳐를 사용했지만 Cell shading 에서는 대개 ***1차원의 텍스쳐***를 사용한다. 이 방식은 컴퓨터 게임에서 만화 풍으로 렌더링할 지오메트리를 묘화할 때 자주 사용되는 기법이다. 다른 용어로 ***Toon shading*** 이라고 하기도 한다.
+
+이 방식의 주요 요점은 1차원 텍스쳐 맵 (`GL_TEXTURE_1D`) 을 *look-up table* 로 사용해서 텍스쳐 맵에서 읽어온 단일 색상(`GL_NEAREST`) 으로 지오메트리를 칠하는 것이다.
+
+기본 개념은 뷰 공간에서의 **Diffuse Light Intensity** ($ \vec N \cdot \vec L $) 을 1D 텍스쳐 좌표로 사용해서 색상 테이블을 `texelFetch` 혹은 `texture` 로 호출해서 텍스쳐로 참조하는 것이다.
+
+#### 예제
+
+> Chapter12/_1221_cellshading.cc 을 참고한다.
+
+##### startup()
+
+프레임버퍼는 필요없다. 그저 색을 담아둘 `GL_NEAREST` 의 `GL_TEXTURE_1D` 버퍼만 필요하다. 따라서 다음과 같이 색상을 만들고, 텍스쳐를 만들어서 `GL_TEXTURE_1D` 타깃에 바인딩한다.
+
+``` c++
+constexpr GLubyte toon_tex_data[] = {
+    0x22, _0x00, 0x44, _0x00, 
+    0x66, _0x00, 0x88, _0x00, 
+    0xAA, _0x00, 0xCC, _0x00,
+    0xFF, _0x00,
+};
+
+glGenTextures(1, &tex_toon);
+glBindTexture(GL_TEXTURE_1D, tex_toon);
+constexpr int count = sizeof(toon_tex_data) / 4; // 7.
+// GL_RGB8 has 32bits, 
+// width : Specifies the width of the texture, in texels (not byte unit, but count).
+glTexStorage1D(GL_TEXTURE_1D, 1, GL_RGB8, count);
+glTexSubImage1D(GL_TEXTURE_1D, 0, 0, count, GL_RGBA, GL_UNSIGNED_BYTE, toon_tex_data);
+
+// Important (GL_NEAREST)
+glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+```
+
+> 대개 툰 쉐이딩을 할 때는 4 색 혹은 7 색 단계의 밝기가 자주 쓰인다고 한다.
+
+##### toonshading.fs.glsl
+
+`texture` 함수를 사용해서 `sampler1D` 의 룩업 테이블을 조회한다. 여기서는 Diffuse 만 고려하기 때문에 간단하게 코드가 작성된다.
+
+``` c++
+uniform sampler1D tex_toon;
+
+// Simple N dot L diffuse lighting
+float tc = pow(max(0.0, dot(N, L)), 5.0);
+// Sample from cell shading texture
+color = texture(tex_toon, tc) * (tc * 0.8 + 0.2);
+```
+
+만약 Ambient, Diffuse, Specular 까지 전부 다 고려할 예정이라면 회색조의 룩업 테이블만 두고 해당 룩업 테이블을 조회해서 원래 색상에 *multiply* 로 반영하면 툰 쉐이딩을 적용한 퐁 라이팅 모델을 구현할 수 있지 않을까 싶다.
+
+결과는 Results/OpenGL_Sb6/_1221.mp4 에서 볼 수 있다.
+
