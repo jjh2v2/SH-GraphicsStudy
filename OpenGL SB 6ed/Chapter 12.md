@@ -262,3 +262,101 @@ $$
 
 > 자세한 설명은 OpenGL Tutorial/Chapter 17. Cubemaps 에서 볼 수 있다.
 
+### 12.1.6 **Material Properties** 
+
+지금까지는 전체 모델에 대해서 단일 재질을 사용했지만, 실제 어플리케이션에서는 모든 모델이 단일 재질을 가질리가 없을 뿐더러 여러 가지 재질을 가지고 있기 때문에 이런 사항들을 전부 고려해야 한다. 서피스 마다의 재질 속성을 할당할 수 있을지도 모르고, 텍스쳐에 서피스 정보를 저장하게 할 수도 있다. 또한 스페큘러 멱승 지수를 다르게 해서 흐리게 하거나 좀 더 밝게 할 수도 있을 것이다.
+
+모델의 거칠기 정도 등도 각 오브젝트마다 제각각 다를 것이다. 이런 거칠기를 조절할 수 있는 방법 중 하나는 환경 맵을 미리 **블러** 시켜서 텍스쳐로 저장해, 광택 인자로 사용하게 해서 맵의 선명한 버전에서 블러된 버전으로 점진적으로 변화시키게 할 수 있기도 하다.
+
+해당 예제에서는 다음과 같은 환경 맵과 광택 맵 (***Shininess Map***) 을 사용할 것이다.
+
+![_12_1_6_1](http://apprize.info/programming/opengl_1/opengl_1.files/image242.jpg)
+
+*광택 맵* 에서 텍셀이 지정한 부분이 $ 0 $ 이라면 블러된 환경 맵을, $ 1 $ 이라면 블러되지 않은 환경 맵을 사용하기로 했다.
+
+##### 예제
+
+> Chapter12/_1216_glossy.cc 을 참고할 것.
+
+### 12.1.7 Shadow Mapping
+
+> 자세한 설명은 OpenGL Tutorial/Chapter 25. Shadow Mapping 을 참고할 것.
+
+그림자 계산에 있어서 가장 중요한 점은 **관심 지점에 빛이 도달하는가**를 결정하는 것이다. 쉐이딩되는 점에서 라이트까지 장애물이 없는 지를 결정해야 한다. 이 과정을 자연스럽게 하는 버퍼가 있는데, 깊이 버퍼가 바로 그 예이다.
+
+그림자 매핑은 **광원의 시점에서 장면을 렌더링하여 정보를 만드는 기법**이다. 깊이 정보만 필요하며, 따라서 오프스크린이 자연스레 따라오고 깊이 어태치먼트만 있는 프레임 버퍼를 만들어서 사용해야 한다. 
+
+> Chapter 25. Shadow Mapping 에서 발췌...
+>
+> 우선 World 공간의 좌표 $$ \overline{P} $$ 가 그림자에 위치해 있는가를 확인할려면, $$ \mathbf{T} $$ 을 곱해 빛의 시점에서 Depth value 가 사상된 위치의 Depth value 보다 큰 지 (그림자에 위치해 있는지), 아니면 작은 지 (빛의 영향을 받고 있는지) 를 확인해야 한다. 그럴려면 Vertex Shader 에서 Model matrix 에 사상된 각 정점 $$ \overline{P} $$ 을 $$ \mathbf{T} $$ 와 곱한 뒤에 Fragment Shader 로 보낸다. 그리고 이 보낸 좌표 값을 Depth Map 의 텍셀의 값과 비교해서 그림자인가 아닌가를 반환한다. 이 반환한 값을 *Diffuse 및 Specular* 에 곱해서 적용하면 기본적인 그림자가 만들어진다.
+>
+> 다만 여기서 주의해야 할 점은, Orthogonal Perspective 에서는 $$ \mathbf{T} $$ 에 의해서 변형된 모든 값 (Clipping 제외)이 $$ [-1, 1] $$ 사이에 있기 때문에 파이프라인 단계에서 Clip space 로 변형 시 $$ w $$ 축 값으로 $$ x,y,z $$ 을 나눠주는 것을 명시적으로 할 필요는 없다는 점이다. 그러나 일반 점 조명 (Point light) 혹은 Specular light 와 같은 경우에는 이 과정이 별도로 필요하다.
+>
+> 그리고 $$ fragPosLightSpace $$ 의 값은 $$ [-1, 1] $$ 값 사이인데, Depth map 의 좌표는 $$ [0, 1] $$ 사이이고 Depth value 역시 $$ [0, 1] $$ 의 범위를 가지므로 간단한 맵핑이 다시 필요하다.
+
+이와 같은 연산은 그래픽스에서 매우 흔한 연산이기 때문에, OpenGL 은 [***Shadow Sampler***](https://www.khronos.org/opengl/wiki/Sampler_(GLSL)#Shadow_samplers) 을 지원하고 있다. GLSL에서는 2D 텍스쳐에 대한 섀도우 샘플러를 `sampler2DShadow` 타입의 변수로 선언하며, 그 외의 영우에 `sampler1DShadow` `samplerCubeShadow` `samplerRectShadow` 와 같은 샘플러를 생성할 수 있다. 각 타입에 대한 배열 역시 생성할 수 있다.
+
+>https://renderman.pixar.com/resources/RenderMan_20/softShadows.html
+>http://fabiensanglard.net/shadowmappingPCF/index.php
+>https://stackoverflow.com/questions/15250380/what-are-shadow-samplers-in-opengl-and-what-are-possible-uses-for-them
+
+#### Example
+
+> Chapter12/_1217_shadow.cc 을 참고한다.
+
+`GL_DEPTH_COMPONENT32F` 와 같은 깊이 버퍼 타입을 가지는 $ z $ 버퍼 텍스쳐를 실제 렌더링 쉐이더에서 그림자를 만들어 내고자 할 때는 그냥 `GL_TEXTURE0` `GL_TEXTURE_2D` 와 같은 타깃으로 바인딩하면 된다. 다만 무사히 잘 넘어가기 위해서는 실 렌더링 쉐이더의 바인딩 포인트 샘플러가 *Shadow Sampler* 형이어야 한다. 여기서는 `sampler2DShadow` 을 사용했다.
+
+``` c++
+// Depth buffer
+glGenTextures(1, &depth_texture);
+glBindTexture(GL_TEXTURE_2D, depth_texture);
+glTexStorage2D(GL_TEXTURE_2D, 1, GL_DEPTH_COMPONENT32F, DEPTH_TEXTURE_SIZE, DEPTH_TEXTURE_SIZE);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+```
+
+이 때 $ z $ 버퍼로 쓰일 텍스쳐는 나중에 그림자 렌더링시 `textureProj` 함수를 쓰기 위해 특정한 옵션을 더 설정해줘야 한다. 그것이 바로 `GL_TEXTURE_COMPARE_MODE` `GL_TEXTURE_COMPARE_FUNC` 이고, 고정 함수 형태로 제공된다.
+
+마지막으로 유저 시점에서 광원 시점에서 생성된 $ z $ 버퍼의 값을 가져오기 위해서는, 위치 값을 **그림자 행렬**로 변환해서 해당 $ z $ 값이 그림자 버퍼의 $ z $ 값보다 큰 지 작은 지를 판별해야 한다. 큰 경우에는 그림자가 생기며 작은 경우에는 그림자가 생기지 않을 것이다.
+
+**그림자 행렬 (Shadow Matrix)** 는 NDC 로 투영까지 시켜주기 때문에 ( $ T = PV $ 에서 맨 앞에 * 0.5 + 0.5 까지 더 한 것이 그림자 행렬) 따로 NDC 값으로 정리해줄 필요가 없다. 또한 이 투영 과정은 GLSL 에서 다음 함수로 제공한다.
+
+``` c++
+float textureProj( 	sampler2DShadow sampler,
+  	vec4 P,
+  	[float bias]);
+```
+
+> https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/textureProj.xhtml
+
+이 함수는 쉐이더를 쓸 때 설정한 고정 함수에 의해서 $ z $ 요소와 비교한 뒤에, 테스트가 성공했는가 실패했는가를 각각 1.0 또는 0.0 으로 반환한다. 만약 대상이 되는 텍스쳐가 `GL_LINEAR` 혹은 멀티 샘플을 수행하고 있을 경우에는 각 샘플에 대해 수행해서 평균을 낸다. 지금 예제의 경우에는 고정 함수가 `GL_LEQUAL` 이므로 $ z $ 값이 버퍼의 $ z $ 값보다 작거나 같으면 1, 아니면 0 을 반환할 것이다.
+
+만약 무아레 현상이 일어나면, $ z $ 버퍼를 갱신하는 쉐이더를 쓸 때 `glPolygonOffset()` 함수를 써서 무아레를 방지하게 할 수도 있다. 
+
+다음은 매우 간략화된 그림자 매핑 프래그먼트 쉐이더의 코드이다.
+
+``` c++
+#version 430 core
+layout (location = 0) out vec4 color;
+layout (binding = 0) uniform sampler2DShadow shadow_tex;
+
+in VS_OUT {
+    vec4 shadow_coord;
+} fs_in;
+
+void main() {
+    diffuse_specular = CalculateColor();
+    color = ambient + texutureProj(shadow_tex, fs_in.shadow_coord) * diffuse_specular;
+}
+```
+
+#### 덤
+
+그림자 맵은 장점과 단점이 공존한다. 각 광원이 **자신만의 $ z $ 맵을 가져야 하기 때문에 메모리 소비가 매우 크다.** 또한 각 라이트는 장면을 따로 렌더링해야하기 때문에 성능에도 영향을 미칠 수 있다. 그리고 그림자 맵의 단일 텍셀이 실제 광원 계산에 수행되는 화면 좌표 상의 정확도를 유지해야 하기 때문에 고해상도의 $ z $ 버퍼 텍스쳐가 필요할지도 모른다. 그렇지 않으면 지글거림 (Shadow acne) 가 일어날 수도 있다. 
+
+*Shadow acne* 가 일어나는 경우에는 `glPolygonOffset` 을 사용해서 지글거림 현상을 제거할 수도 있다. 일단 위 함수를 설정했다면 (스케일 인자를 설정) `glEnable(GL_POLYGON_OFFSET_FILL)` 을 사용해서 효과를 활성화시켜야 한다. 물론 깊이 값을 계산할 때만 설정해야 하며 계산이 끝난 후에는 `glDisable` 을 사용하자.
+
+결과는 Result/Opengl_Sb6/_1217 을 보면 알 수 있다.
+
