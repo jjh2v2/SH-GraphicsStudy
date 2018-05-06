@@ -189,3 +189,167 @@ for (int i = 0; i < num_lights; i++) {
 
    > http://www.openglsuperbible.com/2013/08/20/is-order-independent-transparency-really-necessary/
 
+### 12.3.2 [Ambient Occlusion](https://en.wikipedia.org/wiki/Ambient_occlusion)
+
+*앰비언트 오클루젼* 은 [***Global Illumination***](https://en.wikipedia.org/wiki/Global_illumination) 의 요소 중 하나를 시뮬레이션 하는 기법이다. 글로벌 일루미네이션 (전역 광원) 은 장면의 객체들 간에 **산란하는 빛의 효과를 표현**하는 개념? 이며, 이 기법 하에서 서피스는 인접 서피스에서 반사된 빛에 의해 간접적으로 빛을 받고 이 과정이 반복된다.
+
+*Ambient Light* 는 이러한 산란된 빛에 대한 근사치를 나타내며, 작은 고정값이 라이트 계산에 더해지게 된다.하지만 객체에 **깊은 주름이나 빈틈** 이 있다면, 광원을 **가리는 인접 서피스** 때문에 해당 부분에 빛이 덜 비춰질 것이다. 이것을 시뮬레이션 하는 것이 ***AO*** 이다. 이 기법 중 임시 처리 및 근사치 방식을 사용해서 정확하지는 않으나 효율적인 방법을 구현할 수 있는 [***SSAO (Scree-space Ambient Occlusion)***](https://en.wikipedia.org/wiki/Screen_space_ambient_occlusion) 을 사용해본다.
+
+> The algorithm is implemented as a [pixel shader](https://en.wikipedia.org/wiki/Pixel_shader), analyzing the scene [depth buffer](https://en.wikipedia.org/wiki/Depth_buffer) which is stored in a texture. For every [pixel](https://en.wikipedia.org/wiki/Pixel) on the screen, the pixel shader samples the depth values around the  current pixel and tries to compute the amount of occlusion from each of  the sampled points. In its simplest implementation, the occlusion factor depends only on the depth difference between sampled point and current  point. 
+
+> 또 다른 예제는 여기서 찾아볼 수 있다.
+> http://john-chapman-graphics.blogspot.kr/2013/01/ssao-tutorial.html
+> https://learnopengl.com/Advanced-Lighting/SSAO
+
+![_ao_1](http://apprize.info/programming/opengl_1/opengl_1.files/image256.jpg)
+
+2 차원의 서피스와 서피스 주위에 무수한 포인트 라이트 (360 도 전방으로 빛을 쬔다) 가 있다고 할 때, *Ambient Light* 는 해당 서피스의 **한 점을 지나는 빛의 양** 이라고 할 수 있다. 완전히 평면이 서피스의 경우에는 모든 점은 서피스 위의 모든 빛의 양을 받는다. 하지만 위 그림과 같이 울퉁불퉁할 경우에는 모든 서피스에 대해 받는 빛의 양이 같지 않을 것이다.
+
+#### 방법
+
+위 서피스에서, 가장 위쪽에서는 전부는 아니더라도 거의 모든 라이트는 볼 수 있을 것이다. 하지만 구덩이 아래쪽에서는 **빛이 가려지고**, 산란 빛 (Ambient Light) 을 받는다. 사실 완전한 GI 을 구현하려면 각 점에 대해 수백 혹은 수천개의 방향으로 광선을 추적해서 (Ray tracing) 어디에 충돌했는가를 확인해야 하지만, 실시간 어플리케이션에서는 비용이 너무 크기 때문에 **화면 공간에서 직접 차폐, 즉 가려짐 (Occlusion) 여부**를 계산하는 방법을 사용한다.
+
+> In order to get high quality results with far fewer reads, sampling is performed using a randomly rotated [kernel](https://en.wikipedia.org/wiki/Kernel_(image_processing)). The kernel orientation is repeated every *N* screen pixels in order to have only high-frequency noise in the final  picture. In the end this high frequency noise is greatly removed by a *N*x*N* post-process blurring step taking into account depth discontinuities  (using methods such as comparing adjacent normals and depths). Such a  solution allows a reduction in the number of depth samples per pixel to  about 16 or fewer while maintaining a high quality result, and allows  the use of SSAO in soft real-time applications like computer games. 
+
+이 기법을 구현하려면, **화면 공간의 각 점**에서 임의의 방향에 따라 가상의 선을 진행시키고, 그 선의 진행 과정에서 다른 픽셀의 $ z $ 값과 비교해 얼마나 가려졌는가를 계산할 수 있다. 그렇게 하기 위해서는 오프스크린 렌더링이 필수이며 프레임버퍼에는 *G-buffer* 등을 사용해 화면 공간에 최종 렌더링되는 각 프래그먼트별 **노멀**, **뷰 공간의 선형적 깊이**를 어태치먼트에 들어가도록 렌더링 해야한다.
+
+두 번째 패스에서는 이 정보를 사용해서 각 픽셀에 대한 가려짐 수준을 계산하며, 특별한 VAO 도 필요없고 오로지 사각형 (`GL_TRIANGLES_STRIP`) 으로만 렌더링한다. 이 쉐이더는 첫 번째 패스에서 렌더링한 깊이 값을 읽고, **임의의 방향으로 진행 한 다음에 (사실 SSAO을 잘 쓰려면 임의의 방향으로 진행하게 해서는 안된다)** 각 점에서 방향에 따라 가상의 선을 진행시키면서, 도달한 픽셀의 $ z $ 의 값이 (뷰 공간의 깊이 $ z $ 값) 선을 따라 계산된 깊이보다 작은지를 계산한다. **만약 작다면 그 점은 가려진 점으로 간주한다**.
+
+![hemisphere](http://apprize.info/programming/opengl_1/opengl_1.files/image257.jpg)
+
+임의의 방향을 선택하기 위해, **단위 반지름 구 (Hemisphere)** 상의 여러 임의 벡터를 담은 UBO 을 미리 초기화 시킨다. 임의의 벡터들은 서피스의 **밖을 향해야** 한다. 즉, 어떤 점의 **서피스 노멀**을 90 도 중심으로 해서 $ x, y, z $ 축으로 $ \pm $ 90' 영역 내의 있는 벡터들만 가상의 선으로 사용할 수 있게 끔 고려해야 한다. 따라서 첫 번째 패스에서 *G_buffer* 에 노멀을 저장해야 한다. (물론 이 노멀은 회전을 반영해야 한다) 
+
+따라서 반구 내의 임의 벡터를 얻기 위해, **서피스 노멀과 임의의 방향 벡터를 내적**해서 음수라면 임의 방향 벡터를 반대 방향으로 돌린다. 그러면 반구 내 범위에 존재하는 방향 벡터가 된다.
+
+가상의 선의 방향이 될 임의 벡터**들**을 구했으면, 벡터들을 따라 이동한다. 먼저 서피스의 점에서 시작해서 선택한 거리 벡터를 따라 작은 거리를 단계적으로 이동한다. 그러면 이동할 때마다 $ x, y, z $ 좌표의 새로운 점이 생성이 된다. 이 때 $ x, y $ 좌표를 사용해서 버퍼의 뷰 공간 선형 깊이 $ z $ 값을 읽는다. 이 이동한 시점의 $ z $ 값과 기존 점의 $ z $ 값을 비교해, 기존 점의 $ z $ 값이 더 크면, 기존 점은 가려진 것으로 판단한다는 것이다.
+
+사실 이 알고리즘을 한 방향에 대해서만 쓰면 매우 부정확하지만, 방향을 무수한 개수로 나눠서 쓰고자 하면 서로가 보간되어 통계적으로 잘 동작하며, 출력 이미지 품질이 더 더욱 좋아지게 된다. 또한, ***SSAO*** 을 수행하고자 할 때는 *선택할 임의 방향의 수, 방향 진행 단계의 수, 방향 각도* 등이 이미지 품질의 요소에 영향을 미친다.
+
+![noise](https://learnopengl.com/img/advanced-lighting/ssao_banding_noise.jpg)
+
+사실 임의의 방향 벡터를 진행시킬 때, 고정된 거리로만 이동시켜서 *AO* 를 구현하면 방향의 개수가 적은 단계에서는 이미지 품질이 그렇게 좋지 않은 것을 알 수 있다. 하지만 이동 거리를 임의 거리로 이동시키게 하면 노이즈는 끼지만 전반적인 이미지 품질은 높아지는 것을 알 수 있다....고 한다. 이 방식에 의해 생긴 [**노이즈를 상쇄시키는 방법**](https://en.wikipedia.org/wiki/Kernel_(image_processing))을 쓰면 약간 블러링된 이미지가 나오나 노이즈가 없어진다고 한다. 
+
+*AO* 항이 만들어졌으면 이를 렌더링된 이미지에 적용할 수 있다. *AO* 는 단순히 *AL* 이 가려지는 정도를 수치적으로 나타내기 대문에 최대 앰비언트 라이트 항에 오클루전 항을 곱해주면 된다. 이 *AO* 항은 모델의 음푹 들어간 곳이 *AL* 을 덜 받도록 한다. 
+
+#### 예제
+
+> Chapter12/_1232_ssao.cc 을 본다.
+
+##### render.fs.glsl
+
+***일반 렌더 (SSAO 계산 X)*** 파일에서는 뷰 공간의 노멀 벡터, 라이팅 방향 벡터, 뷰 방향 벡터를 저장하고, Diffuse color, Specular color 을 계산해서 최종 컬러를 저장한다. 또한 뷰 공간에서의 선형 $ z $ 값을 $ RGBA $ 의 alpha 채널에 저장한다. (중요)
+
+``` c++
+// Normalize the incoming N, L and V vectors
+vec3 N = normalize(fs_in.N);
+vec3 L = normalize(fs_in.L);
+vec3 V = normalize(fs_in.V);
+
+// Calculate R locally
+vec3 R = reflect(-L, N);
+
+// Compute the diffuse and specular components for each fragment
+vec3 diffuse = max(dot(N, L), 0.0) * diffuse_albedo;
+diffuse *= diffuse;
+vec3 specular = pow(max(dot(R, V), 0.0), specular_power) * specular_albedo;
+
+// Write final color to the framebuffer
+color = mix(vec4(0.0), vec4(diffuse + specular, 1.0), shading_level);
+normal_depth = vec4(N, fs_in.V.z);
+```
+
+##### ssao.fs.glsl
+
+이 쉐이더에서는 **SSAO** 처리를 한다. 
+
+* [**`textureLod(sampler, texel, lod)`**](https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/textureLod.xhtml)
+
+  **textureLod** performs a texture lookup at coordinate P from the texture bound to sampler with an explicit level-of-detail as specified in lod. lod specifies λbase and sets the partial derivatives as follows: 
+
+파일에서 SAMPLE_POINT 유니폼 버퍼 구조체는 C++ 코드에서 SAMPLE_POINT 구조체와 일치한다.
+
+``` c++
+// Uniform block containing up to 256 random directions (x,y,z,0)
+// and 256 more completely random vectors
+layout (binding = 0, std140) uniform SAMPLE_POINTS {
+    vec4 pos[256];
+    vec4 random_vectors[256];
+} points;
+```
+
+`pos` 는 방향 벡터를 나타내고, `random_vectors` 는 임의 이동에 쓰일 거리 벡터를 나타낸다.
+
+메인 함수에서는 우선 `textureLod` 을 사용해 노멀과 뷰 공간 선형 $ z $ 값을 가져온다. 그리고 *PRNG* (유사 무작위 랜덤 넘버) 를 사용해 임의 이동에 쓰일 벡터를 가져온다. 이를 사용해서 반구의 무작위 반지름을 생성한다.
+
+``` c++
+// n is a pseudo-random number generated from fragment coordinate and depth
+n = (int(gl_FragCoord.x * 7123.2315 + 125.232) * int(gl_FragCoord.y * 3137.1519 + 234.8)) ^
+     int(my_depth);
+// Pull one of the random vectors
+vec4 v = points.random_vectors[n & 255];
+// r is our 'radius randomizer'
+float r = (v.r + 3.0) * 0.1;
+if (!randomize_points) r = 0.5;
+```
+
+쉐이더를 바인딩할 때 `glUniform1i` 로 집어넣은 **가상 선 카운트**를 사용해 *AO* 를 처리하도록 루프를 돌린다. 이 때 방향 벡터가 해당 프래그먼트의 노멀 벡터를 중심으로 한 **바깥 방향 반구**의 범위에 있도록 **내적을 사용해서** 보정을 시킨다. 이 때 dir 은 View 공간상의 방향 벡터이다.
+
+``` c++
+// Get direction and put it into the correct hemisphere
+vec3 dir = points.pos[i].xyz;
+if (dot(N, dir) < 0.0)
+    dir = -dir;
+```
+
+각 프래그먼트의 방향 벡터 당 4 번의 진행 과정을 거친다. 방향 벡터는 바깥쪽으로 진행하기 때문에, 뷰어쪽으로 진행하므로 $ z $ 값은 한 단계마다 $ \vec{Dir} * | r | $ 만큼씩 감소한다. 
+
+``` c++
+// Step in the right direction
+f += r;
+// Step _towards_ viewer reduces z
+z -= dir.z * r;
+```
+
+$ f $ 는 현재까지 진행한 거리이다.
+
+이제 $ f $ $ \vec{Dir} $ $ P $ $ \text{ssao_radius} $ 이 4 개를 사용해서 최종 진행한 곳의 (ssao_radius 로 너무 크게 진행하지 않도록 보정을 한다) 텍셀의 가져와, $ z $ 선형 값을 가져온다.
+
+``` c++
+// Read depth from current fragment
+float their_depth = textureLod(sNormalDepth, (P + dir.xy * f * ssao_radius), 0).w;
+```
+
+그리고 이 프래그먼트의 오클루젼에 대한 기여도인 가중치 $ d $를 계산한다. 이 $ d $ 값은 오클루젼을 누적시킬 때 쓰인다. 여기서 `my_depth` 는 이동하기 전 최초 위치에서의 선형 $ z $ 값이다.
+
+``` c++
+float d = pow(abs(their_depth - my_depth), 2.f);
+```
+
+이제 이동한 위치에서 계산된 $ z $ 값과 이동한 위치에서 $ z $ 버퍼에 기록된 본래 $ z $ 값과 비교를 하여, 이동한 위치에서 계산된 $ z $ 값이 후자 $ z $ 값보다 크면 오클루젼을 누적시킨다. (가려진다는 말이다)
+
+``` c++
+// If we're obscured, accumulate occlusion
+if ((z - their_depth) > 0.0) {
+    occ += 4.0 / (1.0 + d);
+}
+```
+
+임의 방향과 임의 거리를 정해서 $ z $ 값을 탐색하는 루프가 끝나면, **최종 오클루젼 값을 계산**한다. 여기서 `total` 은 진행된 모든 방향의 것을 합산한 총 진행 단계 값이다. 그리고 라이팅이 끝난 후의 객체 색상을 텍스쳐에서 얻고, 앰비언트 색상을 앰비언트 값과 같이 SSAO 레벨만큼 스케일해서 **혼합한다.**
+
+``` c++
+// Calculate occlusion amount
+float ao_amount = 1.0 - occ / total;
+// Get object color from color texture
+vec4 object_color =  textureLod(sColor, P, 0);
+// Mix in ambient color scaled by SSAO level
+color = object_level * object_color + mix(vec4(0.2), vec4(ao_amount), ssao_level);
+```
+
+어두운 면에서는 ao_amount 가 0.2 보다 작을 것이고 밝은 면에서는 ao_amount 가 0.2 보다 클 것이다. 현재 예제에서는 `ssao_level` 이 1.0 으로 고정되어 있기 때문에 `mix()` 함수에 의해서 항상 `vec4(ao_amount)` 가 더해질 것이다.
+
+결과는 Results/OpenGL_Sb6/_1232.mp4 에서 볼 수 있다. (덤 : 노이즈가 낀 화면은 box filter 등으로 블러링을 먹여 지울 수 있다)
+
+### 12.3.3 [Julia set](https://en.wikipedia.org/wiki/Julia_set)
+
+### 12.3.4 기초적인 Ray tracing
+
