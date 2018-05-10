@@ -35,6 +35,13 @@ This repository is for studying of OpenGL and other graphic libraries such as Di
 
 ---
 
+### TODO
+
+- [ ] `2018-05-11` OpenGL Superbible 6ed Chapter 4 보강
+- [ ] `2018-05-11` OpenGL Superbible 6ed Chapter 11 Query 추가 진행
+
+---
+
 ### Log
 
 2018-01-01~
