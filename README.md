@@ -1,15 +1,14 @@
-# GraphicsStudyNotes
+# Graphics Study Notes
 Graphic study notes.
 
-This repository is for studying of OpenGL and other graphic libraries such as DirectX and so on. All documents and notes are written in Korean. You have a right to read and release a issue to ask something for me.
-
-*This translated articles might be removed without any advanced notice when received a request from the people related to original works.*
+This repository is for studying of OpenGL and other graphic libraries such as DirectX and so on. All documents and notes are written in Korean. You can read articles in Korean and publish a issue to ask something for me and request some of thing related repository and graphics knowledge.
 
 - Cautions
+  - ***Those translated articles might be removed without any advanced notice when had a request from the person which related to original works.***
   - If you read markdown documents without any lack of support of special grammar like a $LaTeX$ phrases, Please clone this and read documents in `Typora`[https://typora.io/](https://typora.io/)
   - All documents was written in `Typora` and provide perfect support in that.
-  - All code samples and images are licensed under the terms of the CC BY-NC 4.0 license as published by Creative Commons. [A human-readable format of the license](https://creativecommons.org/licenses/by-nc/4.0/). and the full license are [here](https://creativecommons.org/licenses/by/4.0/legalcode). and I give great thanks to [JoeyDeVriez](https://twitter.com/JoeyDeVriez) for making the greatest [OpenGL tutorial](https://learnopengl.com/).
-  - Code samples use [glfw](https://github.com/glfw/glfw), [glew](https://github.com/nigels-com/glew), [stb_image header library](https://github.com/nothings/stb), and [glm](https://github.com/g-truc/glm).
+  - All code samples and images are licensed under the terms of the CC BY-NC 4.0 license as published by Creative Commons. [A human-readable format of the license](https://creativecommons.org/licenses/by-nc/4.0/). and the full license are [here](https://creativecommons.org/licenses/by/4.0/legalcode).
+  - Code samples related to OpenGL should use [glfw](https://github.com/glfw/glfw), [glew](https://github.com/nigels-com/glew), [stb_image header library](https://github.com/nothings/stb), and [glm](https://github.com/g-truc/glm) library to operate without no error.
 
 ---
 `Korean`
@@ -50,3 +49,4 @@ This repository is for studying of OpenGL and other graphic libraries such as Di
 * 2018-04-30 :: OpenGL Superbible 6ed Chapter 7 Done.
 * 2018-05-06 :: OpenGL Superbible 6ed Chapter 8, 9, 10, 12 Done. Complete except for Chapter 11 Query.
 * 2018-05-06 :: Upload OpenGL Superbible 6ed C++ file of own version. If you want to get shader source code, you should visit [6ed repository page](https://github.com/openglsuperbible/sb6code) and download them.
+* 2018-05-10 :: Resolved issues #3 #4
