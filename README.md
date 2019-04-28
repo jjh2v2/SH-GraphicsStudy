@@ -30,15 +30,8 @@ This repository is for studying of OpenGL and other graphic libraries such as Di
 
 * 2018-01 ~ 2018-02 :: Study of OpenGL https://learnopengl.com
 * 2018-03 ~ 2018-05 :: OpenGL Superbible 6ed
-
-* Since 2018-04 :: DirectX 12를 이용한 3D 게임 프로그래밍 입문
-
----
-
-### TODO
-
-- [ ] `2018-05-11` OpenGL Superbible 6ed Chapter 4 보강
-- [ ] `2018-05-11` OpenGL Superbible 6ed Chapter 11 Query 추가 진행
+* Suspended :construction: 2018-04 :: DirectX 12를 이용한 3D 게임 프로그래밍 입문
+* 2019-04 ~ :: Real Time Rendering 4th
 
 ---
 
@@ -57,3 +50,5 @@ This repository is for studying of OpenGL and other graphic libraries such as Di
 * 2018-05-06 :: OpenGL Superbible 6ed Chapter 8, 9, 10, 12 Done. Complete except for Chapter 11 Query.
 * 2018-05-06 :: Upload OpenGL Superbible 6ed C++ file of own version. If you want to get shader source code, you should visit [6ed repository page](https://github.com/openglsuperbible/sb6code) and download them.
 * 2018-05-10 :: Resolved issues #3 #4
+
+* 2019-04-28 :: Real Time Rendering 4th #3
