@@ -74,3 +74,65 @@ $$
 		\mathbf{c}_{surface}
 $$
 
+### 2.1 Directional Lights
+
+* **Directional Light** 는 $$ \mathbf{l} $$ 과 $$ \mathbf{c}_{light} $$ 가 레벨 (씬) 전체에 대해 **고정이다.** 다만 그림자 맵핑에 의해 $$ \mathbf{c}_{light} $$ 는 차폐되어 $$ (0, 0, 0) $$ 이 될 수 있다. Directional Light 는 임의 공간에 대해 실제로는 광원을 가지고 있지만, 추상화되어 **씬 위에서의 실제적인 광원 포인트는 없는** 빛 모델이다.
+* 물론 직사광선 역시 Light Volume 을 가져서, 이 Volume 의 경계면에서 `Smoothstep` 과 같은 것으로 $$ \mathbf{c}_{light} $$ 을 조절할 수 도 있다.
+
+### 2.2 Punctual Lights
+
+* **Punctual Light** 는 *Directional Light* 와는 다르게 **씬 위에서의 위치를 가지는 빛**을 통합적으로 말한 것이다. 이 Punctual Light 에서 위치가 존재하며, 구 방사형으로 일정한 빛을 뿜을 (일정하지 않을 수도 있음) 경우, 이 빛을 **Point Light** 라고 한다.
+* Punctual Light 에서 빛의 위치를 $$ \mathbf{p}_{light} $$ 이라고 하며, 그리고 빛의 영향을 받을 예정인 표면의 위치를 $$ \mathbf{p}_0 $$ 이라고 할 때, 기호 $$ r $$ 은 다음과 같다.
+
+$$
+\begin{align}
+	\mathbf{d} &= \mathbf{p}_{light} - \mathbf{p}_0 \\
+	r &= \sqrt{\mathbf{d} \cdot \mathbf{d}} = |\mathbf{d}|
+\end{align}
+$$
+
+#### Point / Omni Light
+
+> https://en.wikipedia.org/wiki/Inverse-square_law
+
+* Punctual Light 에서 구 방사형으로 빛을 고르게 내뿜는 빛 모델을 **Point Light** 라고 한다. 혹은 **Omni Light** 라고 하기도 한다. 이 빛 모델의 특징은, 거리 $$ r $$ 에 따라서 $$ \mathbf{c}_{light} $$ 가 점차적으로 (반비례하게) 변한다는 것이다. 현실 세계에서 빛이 $$ r $$ 만큼 진행하면, 거기에 대한 단위면적 빛의 밀도가 $$ r^2 $$ 만큼 감쇄한다는 것을 나타낸 것이라고 보면 될 것 같다.
+* 위의 설명을 밑의 수식으로 표현할 수 있으며, 이 수식이 *Point Light* 의 기본 골자가 된다.
+  이 식을 **Inverse-square light attenuation** 이라고 한다.
+
+$$
+\mathbf{c}_{light}(r) = \mathbf{c}_{light_0}(\frac{r_0}{r})^2
+$$
+
+* 다만 위 식 그대로 쓰기에는 문제점이 존재한다.
+
+  1. ISLA 에서 **$$ r $$ 이 $$ 0 $$ 으로 진행할 때, 최종 결과값이 기하급수적으로 증가한다. 또한 $$ r = 0 $$ 일 경우에는 값은 `INF` 가 될 수도 있다.** 심각한 경우 프로그램의 에러를 일으킬 수 있다. 이 문제를 해결하기 위해 UE4 나 프로스트바이트 엔진과 같은 상용 엔진은 아래 두 개의 솔루션을 사용하고 있다.
+
+     * `UE4` 의 경우 : 분모가 되는 부분에 고정된 미세실수 $$ \epsilon $$ 을 더해서 값이 무한으로 증가하는 것을 막는다. 언리얼 엔진에서는 해당 $$ \epsilon $$ 을 0.01 (1CM) 로 고정해서 사용한다.
+       $$
+       \mathbf{c}_{light}(r) = \mathbf{c}_{light_0}(\frac{r_0}{r + \epsilon})^2
+       $$
+
+     * `CryEngine` `Frostbite` 의 경우 : 광원이 되는 물체 안으로 오브젝트가 투과할 수 없음을 이용해서, 해당 광원의 **물체가 되는 부분의 크기를 $$ r_{min} $$ 으로 설정해서 이를 분모에 더해 사용한다**. 매직넘버가 없음은 장점이지만 조금 더 복잡해진다.
+       $$
+       \mathbf{c}_{light}(r) = \mathbf{c}_{light_0}(\frac{r_0}{r + r_{min}})^2
+       $$
+       
+
+  2. ISLA 의 두번째 문제는, $$ r $$ 이 무한으로 진행할 때 일반 수식으로는 $$ \mathbf{c}_{light}(r) $$ 은 절대로 0 이 될 수 없다. 컴퓨터 그래픽스에서 다양한 빛이 존재하는 경우, 최적화 등을 위해 포인트 라이트에는 빛이 도달하는 최대 거리를 지정하는 경우가 많다. 이 때 빛이 도달하는 최대 거리에서 $$ \mathbf{c}_{light}(r) = 0 $$ 이 되기 위해서는 위 식에서 **Windowing Function** 이라 하는 것을 곱해줘서 최대 거리에 빛의 세기가 0 에 도달해야 한다.
+     $$
+     \begin{align}
+     f_{win}(r) &= (1 - (\frac{r}{r_{max}})^4)^{+2} \\
+     \mathbf{c}_{light}(r) &= \mathbf{c}_{light_0}f_{win}(r)(\frac{r_0}{r + r_{min}})^2
+     \end{align}
+     $$
+
+* *ISLA* 을 사용하지 않고, 성능을 보다 높이기 위해 (Inversed-Square 을 쓰지 않는) 더 추상적으로 일반화된 수식을 쓰는 경우도 존재한다. 밑의 수식은 Just Cause 2 에서 극다량의 빛을 더 빠르게 연산하기 위해 쓰여진 식으로,
+  $$ f_{dist}(r) $$ 을 **Distance Falloff Functions** 라고 부른다. *DFF* 는 위의 *ISLA* 을 쓸 때 고려해야 할 두 가지의 이슈를 단번에 해결하지만, 덜 정확한 단점이 존재한다.
+
+$$
+\begin{align}
+	\mathbf{c}_{light} &= \mathbf{c}_{light_0}f_{dist}(r) \\
+	f_{dist}(r) &= (1 - (\frac{r}{r_{max}})^2)^{+2}
+\end{align}
+$$
+
