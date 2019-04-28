@@ -155,3 +155,12 @@
 * GPGPU 와 같이, GPU Computing 을 사용해서 GPU 에 최적화된 연산을 수행하는 스테이지. 이 스테이지는 일반 GPU 렌더링 파이프라인에 묶이지 않으며, VRAM 에 존재하는 다양한 버퍼를 GPU 단에서 직접 조작하거나 접근하는 것이 가능하다.
 
 * 이를 적극 활용해서, GPU 파티클 시스템, 메쉬 프로세싱, 얼굴 애니메이션, 컬링, 이미지 필터링, DOF, 쉐도우 등과 같은 작업이 가능하다. 뿐만 아니라, 컴퓨터 쉐이더를 사용하면 일반 테셀레이션을 사용하는 것보다 더 효율적이라는 문서도 나와있다.
+
+## A. 참고
+
+[943] : https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=1&ved=2ahUKEwjH146GzfLhAhWEErwKHT7LCaIQFjAAegQIABAB&url=https%3A%2F%2Fdownload.nvidia.com%2Fdeveloper%2FGPU_Gems_2%2FGPU_Gems2_ch18.pdf&usg=AOvVaw30ncpLaAEuIryWjR-m5cVi
+
+[1227] : https://dl.acm.org/citation.cfm?id=1281671
+
+[530] : https://fgiesen.wordpress.com/2011/07/09/a-trip-through-the-graphics-pipeline-2011-index/
+
