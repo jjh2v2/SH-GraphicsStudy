@@ -136,3 +136,45 @@ $$
 \end{align}
 $$
 
+#### Spotlights
+
+* *Point Light* 에, 빛이 퍼지는 범위 각도 $$ \theta_{u} $$ 가 추가된 형태.
+  $$ \theta_{u} $$ 는 **Umbra angle** 이라고 부른다.
+
+  이 *Umbra angle* 을 $$ c_{light} $$ 의 식에 추가하려면, 각도에 따른 Falloff function 인 $$ f_{dir}({\mathbf{l}}) $$ 이 필요하다. 
+  즉, 다음과 같은 식이 된다.
+
+$$
+\mathbf{c}_{light} = \mathbf{c}_{light_0}f_{dist}(r)f_{dir}(\mathbf{l})
+$$
+
+* 다만 엄밀히 말하면 $$ f_{dir}(\mathbf{l}) $$ 는 콘 형태의 Spotlight 외에도 다양한 형태로도 구현이 될 수 있다. 이 함수에는 $$ \mathbf{l} $$ 이 인자로 들어가지만, 실제로는 $$ \mathbf{l} $$ 을 기반으로 한 각 인자 $$ \theta_u , \theta_s , \theta_p $$ 가 사용된다.
+  * $$ \theta_u $$ : **Umbra angle** 로, Spotlight 에서 빛의 영향이 아예 없는 경계각을 나타낸다.
+  * $$ \theta_s $$ : Spotlight Angle 로, $$ \mathbf{l} \cdot normalize(d_0 - d) $$ 의 현재 쉐이딩할 표면과 빛, 그리고 빛의 중심이 되는 방향과의 각도를 나타낸다. (종속변인)
+  * $$ \theta_p $$ : **Penumbra Angle** 로, Spotlight 에서 빛이 Falloff 되는 각도를 나타낸다. 이 각도 안에서는 방향에 따른 빛의 세기는 동일해진다.
+
+따라서 다음과 같이, *Spotlight* 의 최종 $$ f_{dir}({\mathbf{l}}) $$ 을 수식화 할 수 있다.
+$$
+\begin{align}
+\cos\theta_s &= \mathbf{l} \cdot \frac{d_0 - d}{|d_0 - d|} \\
+t &= (\frac
+	{\cos(\theta_s) - \cos(\theta_u)}
+	{\cos(\theta_p) - \cos(\theta_u)})^{\mp} \\
+f_{dir_F}(\mathbf{l}) &= t^2 \\
+f_{dir_T}(\mathbf{l}) &= smoothstep(t)
+\end{align}
+$$
+
+* $$ f_{dir_F}(\mathbf{l}) $$ 는 Frostbite 엔진에서 차용한 식이며, $$ f_{dir_T}(\mathbf{l}) $$ 은 Three.js 에서 차용한 식이다.
+
+#### Other Punctual Lights
+
+* 위에서도 있지만 $$ f_{dir}(\mathbf{l}) $$ 은 단순히 콘 형태의 *Spotlight* 을 구현하는데 쓰일 뿐만 아니라, 각종 종속변인으로 다양한 빛을 쉐이딩하게 하는데도 쓸 수 있다. 예를 들면, 각 인자를 사용해서 빛 모양을 내는데 텍스쳐를 입혀 모양을 쓰게 하거나 할 수 있다는 것.
+  * 예시로, *Tomb Raider (2013)* `[953]` 에서는 $$ (x, y, z) $$ 축을 사용해서 독자적인 Falloff function 을 사용했다고 한다. 또한 $$ c_{light_0} $$ 을 고정시키지 않고, 곡선 그래프 툴을 사용해 시간의 흐름에 따라 보다 동적인 라이트를 사용하게끔 구현했다고 한다.
+    * 구체적인 예로는 횃불이 깜빡인다거나, 빛이 나무들에 가려서 투과되다 말다가 하는 식의...
+
+### 2.3 Other Light Types
+
+* *Directional Light, Point Light, Spot Light* 이외에도 현실 세계의 빛의 모델링을 추상화해서 여러 가지 독자적인 빛을 구현할 수 있다. *Tomb Raider (2013)* 에서는 Point Light 을 좀 더 발전시켜서 Capsule Light 라는 것을 만들었는데, 이 빛 모델은 선형으로 되어서 어떤 물체의 표면과 해당 빛의 광원에서 가장 가까운 지점을 골라, 쉐이딩하게 한다.
+* 또한 **Area Light** 라는 것도 존재하는데, 이는 일반적인 Point Light 보다 더 현실적으로 빛을 모델링한 것이라고 한다. 다만 광원과 동시에 표면에 대한 광원 등이 존재하므로 아주 추상화된 Point Light 보다는 연산이 복잡해질 수 있다. 그렇지만 현재 GPU 의 성능이 올라감과 동시에 Area Light 의 연산이 그렇게 느려지지는 않기 때문에 현재는 많이 쓰는 편이라고 한다.
+
