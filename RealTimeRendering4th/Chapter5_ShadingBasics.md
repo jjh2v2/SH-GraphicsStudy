@@ -281,3 +281,84 @@ $$
 * 대개 AA 는 메쉬들의 외곽선들의 지터링을 보간해서 해결하기 위해 사용하는 경우가 대다수이다. (텍스쳐 자체의 지터링을 해결하기 위해서는 대체로 이등방성 필터링을 쓴다.) 다만 Morphological 한 AA 방법은, 후처리 연산을 통해서 외곽선의 구조들을 파악한 후, 구조에 따라 부분적으로 블러링을 먹여서 AA 을 구현한다.
 * 2009 년, Reshetov `[1483]` 의 **Morphological Antialiasing (MLAA)** 와, 이 AA 방법의 연산량을 줄여서 게임과 같은 실시간 렌더링 프로그램에서 쓸 수 있도록 한 **Subpixel Morphological Antialiasing (SMAA)** `[820, 830, 834]` 가 존재한다.
   * Jimenez `[836]` 은 보다 더 개량된 SMAA 구현을 했다고 한다. 그가 구현한 방법은 FXAA 보다 빠른 경우가 존재한다고 한다.
+
+## 5. Transparency, Alpha and Compositing
+
+* **Screen-Door Transparency `[1244]`** 는 픽셀 정렬된 아주 작은 체커보드 패턴의 텍스쳐를 사용해, 메쉬의 머터리얼의 투명치에 따라서 패턴의 픽셀을 *Threshold* 로 두어 프래그먼트를 Discard 하는 방식으로 **유사하게** 반투명을 구현하는 방법이다. 이 방법은 동시에 여러 물체에 해당 기법을 쓰게 되면 반투명되는 물체가 다른 반투명인 물체에 겹쳐보이게 되는 문제점이 있지만, 매우 간편하고 불투명한 물체에 간단히 쓰일 수 있기 때문에 자주 사용되는 방법이다.
+  * 이 기법에서 사용된 체커보드 패턴의 텍스쳐와 같이, 어떤 값에 의해서 텍셀들이 경계점으로 쓰일 수 있는 텍스쳐를 **Cutout Texture** 라고 한다. 또한 이 *Cutout Texture* 을 사용해서 픽셀이 아닌 Subpixel 단위에서 안티에일리어싱을 구현하게끔 한 것을 **Alpha to Coverage** (`Section 6.6`) 기법이라 한다.
+* 위 기법을 제외한 대다수의 투명 물체 렌더링 알고리즘은 투명한 오브젝트의 색상과 뒷편의 불투명한 오브젝트의 색상을 섞어서 렌더링을 한다. 이 때 사용되는 컨셉이 **Alpha blending** 인데, Alpha $$ \alpha $$ 는 보통 색상의 투명도를 나타내지만 혹은 해당 프래그먼트의 픽셀에 대한 점유도 (Coverage) 을 나타낼 수도 있다는 것을 명심하자.
+  * 픽셀의 알파 $$ \alpha $$ 는 상황에 따라 투명도 혹은 픽셀의 점유도를 나타낸다.
+
+### 5.1 Blending Order
+
+* 프래그먼트의 색상을 섞을 때는 대개 $$ \mathbf{over} $$ operator 을 사용한다.
+  $$ \mathbf{over} $$ operator 는 다음과 같다.
+
+  각 문자의 첨자 $$ s $$ 는 현재 렌더링되는 색을 나타내며, $$ d $$ 는 이미 버퍼에 렌더된 (블렌딩된) 색을 나타낸다.
+
+$$
+\mathbf{c}_o = \alpha_s \mathbf{c}_s + (1 - \alpha_s) \mathbf{c}_d
+$$
+
+* 다만 $$ \mathbf{over} $$ operator 을 사용해서 단순히 반투명을 구현하려면 매우 부정확할 뿐 더러, 어느 반투명 물체가 먼저 렌더링되느냐에 따라 최종 색이 달라질 수도 있다. 이 경우 자료구조를 사용해서 카메라의 $$ far $$ 에 가까운 반투명 물체부터 가까운 반투명 물체까지 순서대로 정렬한 뒤 렌더링하는 방법이 존재한다. (물론 성능은 장담못함)
+* **Additive Blending** 은 $$ \mathbf{over} $$ operator 의 변형으로, 색을 블렌딩하는 것이 아니라 단순히 이미 렌더된 색 위에 또 다른 색을 추가로 얹는다. 대개 광원이 빛나는 효과나 파티클의 스파크 등에 적용할 수 있다. 그렇지만 실제 현실에서는 광원의 빛에 의해 주위의 색의 채도가 높아진다거나 하는 부수효과가 있기 때문에 해당 식이 완전하다고는 못함. `[1192, 1273, 1813]`
+
+$$
+\mathbf{c}_o = \alpha_s \mathbf{c}_s + \mathbf{c}_d
+$$
+
+* 반투명한 물체의 프래그먼트가 앞에서 부터 뒤로 렌더링될 때 사용할 수 있는 operator 로 $$ \mathbf{under} $$ operator 가 있다. 이 operator 는 $$ \mathbf{c}_o $$ 은 순서에 독립적이지 않지만, $$ \mathbf{a}_o $$ 은 순서에 독립적이다.
+
+  주의해야 할 점은 위의 식과는 다르게 $$ \mathbf{c}_d $$ 가 Source 가 되며 $$ \mathbf{c}_s $$ 가 Destination (버퍼) 가 된다는 점이다.
+  또한 $$ \mathbf{a}_o $$ 은 Source 와 Dest 두 프래그먼트의 Coverage 을 합친 꼴로 볼 수 있다. (이전에 Alpha 가 일반 투명도 외에도 Coverage 로 작용할 수 있다는 것을 기억하자고 했음) `Figure 5.34`
+
+$$
+\begin{align}
+\mathbf{c}_o &= \alpha_d \mathbf{c}_d + (1 - \alpha_d) \alpha_s \mathbf{c}_s \\
+\mathbf{a}_o &= \alpha_s - \alpha_s \alpha_d + \alpha_d
+\end{align}
+$$
+
+### 5.2 Order-Independent Transparency
+
+* $$ \mathbf{under} $$ operator 는 $$ \mathbf{over} $$ operator 와 같이 쓰일 수 있다. 예를 들면, 반투명한 오브젝트들을 렌더링할 때 별도의 컬러 버퍼에 반투명한 오브젝트들의 블렌딩된 컬러를 *under* 을 사용해서 최종 결정하고 그 후에 *over* 을 사용해서 불투명한 오브젝트의 컬러 버퍼의 색상과 섞어서 최종 색을 계산해낼 수 있다.
+
+  또는 **Depth Peeling, Order Independent Transparency** `[449, 1115]` 라고 알려진 알고리즘을 사용해서 반투명한 물체를 렌더링할 때도 $$ \mathbf{under} $$ 가 쓰인다.
+
+* *Order-Indenpendent Transparency* 기법은 CPU 혹은 GPU 단에서 반투명한 물체를 소팅할 필요가 없는 알고리즘을 통틀어서 말하는 기법들이다. 이 기법들 중 *Depth-Peeling* 은 불투명한 물체들의 z 버퍼와 반투명한 물체의 z 버퍼, 그리고 반투명한 물체의 색상을 담는 버퍼로 구성된다.
+
+  * *Depth-Peeling* 은 쉐이더 단에서 **불투명한 물체의 z 버퍼에 가장 가까운 z 값을 가지는 반투명한 물체를 뒤에서 부터 앞으로 차례차례 한 겹씩 벗겨나가면서 $$ \mathbf{under} $$ operator 을 사용해 색상을 블렌딩한다.** 다만 이렇게 물체를 렌더링할 경우에는 고정된 횟수로 몇 겹을 렌더링할 것인지, 아니면 UAV 나 OpenGL 의 Shader Storage Buffer 등을 사용해서 임의의 반투명한 물체가 렌더링 되었는가 안되었는가를 확인하고 렌더링 파이프라인을 끝내야하는 약간의 번거로움이 존재한다.
+    * Atomic Counter 을 사용해도 될 것 같기도 하다...
+      http://www.lighthouse3d.com/tutorials/opengl-atomic-counters/
+  * 일반 $$ \mathbf{under} $$ operator 을 사용할 때에는, 공식의 특성에 따라 가장 맨 먼저 렌더링 된 색상이 점차적으로 비율이 적어지기 때문에 뒤에서부터 앞으로 렌더링하는 것을 추천한다.
+
+* **Dual Depth Peeling** 은 Bavoil 과 Myers 에 의해서 `[118]` 개발된 Depth-Peeling 의 변형으로, **앞과 뒤를 동시에 렌더링해가는 식**으로 반투명한 물체를 렌더링한다. 이렇게 함으로써 렌더링 되는 패스의 수를 이론상 반으로 줄일 수 있다.
+
+  * Liu et al. `[1056]` 에서는 GPU 을 사용한? 버킷 소트를 이용해서 Dual Depth Peeling 을 싱글 패스에 32개의 레이어를 동시에 렌더링하게 하는 방법을 개발했다고 한다. 물론 이 경우 상당한 메모리를 소모하는 단점이 있다...
+
+* **Weighted Sum** 또는 **Weighted Average** `[118]` 은 싱글 패스로 돌아가며, OIT 한 렌더링 방법이다. **이 방법은 투명도가 높은 물체들에 대해서는 꽤 그럴싸한 반투명 렌더링 결과를 보이지만**, 투명도가 낮아질 수록 두 방법이 사용하는 버퍼 색 결정의 공식의 특성 상 잘 동작하지 않는다. 또한 *Depth-Peeling* 과는 다르게 불투명도가 $$ 1.0 $$ 일 경우에도 불투명하게 렌더링이 되지 않고, 역으로 색이 이상하게 출력되거나 반투명인 것처럼 출력될 수 있다.
+
+  * Weighted Sum 의 공식은 다음과 같다.
+    $$ \mathbf{c}_d $$ 는 Opaque 한 버퍼의 색상이다.
+    $$
+    \mathbf{c}_o = 
+    		\sum_{i = 1}^{n}(\alpha_i \mathbf{c}_i)
+    	+	\mathbf{c}_d (1 - \sum_{i = 1}^{n} \alpha_i)
+    $$
+    위 공식에서 짐작이 갈 수 있듯이, 만약 $$ \alpha_i $$ 의 합이 $$ 1 $$ 을 넘어버리는 경우가 오면 불투명 색상은 마이너스 값이 되버리는 치명적인 결함이 존재한다.
+
+  * Weighted Average 의 공식은 다음과 같다. 평균을 구해서 색을 반영하는 방법은 기존 Sum 의 결함을 해결하고자 착안되었다고 봐도 될 것 같음.
+    $$
+    \begin{align}
+    		\mathbf{c}_{sum} &= \sum_{i = 1}^{n}(\alpha_i \mathbf{c}_i), 
+    	\ \alpha_{sum} = \sum_{i = 1}^{n} \alpha_i \\
+    		\mathbf{c}_{wavg} &= \frac{\mathbf{c}_{sum}}{\alpha_{sum}},
+    	\ \alpha_{avg} = \frac{\alpha_{sum}}{n} \\
+    	u &= (1 - \alpha_{avg})^n \\
+    	\mathbf{c}_o &= (1 - u) \mathbf{c}_{wavg} + u \mathbf{c}_d
+    \end{align}
+    $$
+
+* **Weighted Blended OIT** 는 Average 의 결함인, 먼 프래그먼트와 가까운 프래그먼트의 알파값이 동일하다고 할 때 가까운 프래그먼트의 색상이 더 돋보이지 않고 평준화에 의해 모든 반투명 프래그먼트가 동일한 Weight 을 가지게 된다는 단점을, $$ z $$ 값에 따라 가중치를 둠으로써 해결한 방법이다. `[1176, 1180]`.
+
+* 아쉽게도 현재 나와있는 반투명 렌더링 방법 중에 완벽하게 반투명 물체를 렌더링할 수 있는 방법은 존재하지 않는다. `[1931, 1141]` 을 보자.
